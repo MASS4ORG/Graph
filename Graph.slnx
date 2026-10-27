@@ -1,0 +1,12 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU"/>
+        <Platform Name="x64"/>
+        <Platform Name="x86"/>
+    </Configurations>
+    <Project Path=".nuke/Build.csproj">
+        <Build Solution="*|Any CPU" Project="false"/>
+    </Project>
+    <Project Path="Graph/Graph.csproj"/>
+    <Project Path="Graph.Tests/Graph.Tests.csproj"/>
+</Solution>

@@ -1,0 +1,128 @@
+namespace MASS4.Graph;
+
+/// <summary>
+/// A registered kind of node: its port declarations, payload serialization and schema version. Application data
+/// attaches as a payload object, so domains never inherit framework node classes.
+/// </summary>
+public sealed class NodeType : ITypeIdentity
+{
+    readonly Dictionary<StableId, PortDeclaration> portsByKey;
+
+    /// <summary>Creates a node type.</summary>
+    /// <param name="id">Persistent identity.</param>
+    /// <param name="displayName">Human-readable name.</param>
+    /// <param name="ports">Port declarations in display order.</param>
+    /// <exception cref="ArgumentException">Two ports share a key.</exception>
+    public NodeType(StableId id, string displayName, IReadOnlyList<PortDeclaration> ports)
+    {
+        Id = id;
+        DisplayName = displayName;
+        Ports = ports;
+        portsByKey = new(ports.Count);
+        foreach (var port in ports)
+        {
+            if (!portsByKey.TryAdd(port.Key, port))
+            {
+                throw new ArgumentException(
+                    $"Node type '{displayName}' declares port {port.Key} twice.", nameof(ports));
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public StableId Id { get; }
+
+    /// <inheritdoc />
+    public string DisplayName { get; }
+
+    /// <summary>Port declarations in display order.</summary>
+    public IReadOnlyList<PortDeclaration> Ports { get; }
+
+    /// <summary>Current payload schema version; older saved nodes are upgraded through registered migrations.</summary>
+    public int Version { get; init; } = 1;
+
+    /// <summary>Serializer for the node payload; null keeps saved payloads opaque.</summary>
+    public IValueSerializer? PayloadSerializer { get; init; }
+
+    /// <summary>Finds a declared port by key.</summary>
+    public bool TryGetPort(StableId key, [NotNullWhen(true)] out PortDeclaration? port) =>
+        portsByKey.TryGetValue(key, out port);
+}
+
+/// <summary>A typed function the host exposes to graphs, such as an automation or scripting library entry.</summary>
+/// <param name="id">Persistent identity.</param>
+/// <param name="displayName">Human-readable name.</param>
+/// <param name="parameterTypes">Port type identities of the parameters, in order.</param>
+/// <param name="resultType">Port type identity of the result, or null when the function returns nothing.</param>
+public sealed class HostFunction(
+    StableId id,
+    string displayName,
+    IReadOnlyList<StableId> parameterTypes,
+    StableId? resultType) : ITypeIdentity
+{
+    /// <inheritdoc />
+    public StableId Id { get; } = id;
+
+    /// <inheritdoc />
+    public string DisplayName { get; } = displayName;
+
+    /// <summary>Port type identities of the parameters, in order.</summary>
+    public IReadOnlyList<StableId> ParameterTypes { get; } = parameterTypes;
+
+    /// <summary>Port type identity of the result, or null when the function returns nothing.</summary>
+    public StableId? ResultType { get; } = resultType;
+}
+
+/// <summary>Upgrades saved nodes of one type from one payload version to the next.</summary>
+/// <param name="NodeTypeId">Current identity of the node type.</param>
+/// <param name="FromVersion">The version this step reads; it produces <c>FromVersion + 1</c>.</param>
+/// <param name="Migrate">Rewrites the saved node object, including its payload and ports.</param>
+public sealed record NodeMigration(StableId NodeTypeId, int FromVersion, Func<JsonObject, JsonObject> Migrate);
+
+/// <summary>A unit of type registrations, typically emitted by the discovery source generator.</summary>
+public interface IGraphTypeModule
+{
+    /// <summary>Adds this module's types, renames and migrations to the registry.</summary>
+    void Register(GraphTypeRegistry registry);
+}
+
+/// <summary>All identities a graph document resolves against: node types, port types and host functions.</summary>
+public sealed class GraphTypeRegistry
+{
+    readonly Dictionary<(StableId NodeType, int FromVersion), NodeMigration> migrations = [];
+
+    /// <summary>Registered node types.</summary>
+    public IdentityRegistry<NodeType> NodeTypes { get; } = new();
+
+    /// <summary>Registered port and variable value types.</summary>
+    public IdentityRegistry<PortType> PortTypes { get; } = new();
+
+    /// <summary>Host-provided functions graphs may call.</summary>
+    public IdentityRegistry<HostFunction> HostFunctions { get; } = new();
+
+    /// <summary>Adds a module's registrations.</summary>
+    public GraphTypeRegistry Add(IGraphTypeModule module)
+    {
+        module.Register(this);
+        return this;
+    }
+
+    /// <summary>Registers a payload migration step.</summary>
+    /// <exception cref="ArgumentException">A step for the same type and version already exists.</exception>
+    public void AddMigration(NodeMigration migration)
+    {
+        if (!migrations.TryAdd((migration.NodeTypeId, migration.FromVersion), migration))
+        {
+            throw new ArgumentException(
+                $"A migration from version {migration.FromVersion} of {migration.NodeTypeId} already exists.",
+                nameof(migration));
+        }
+    }
+
+    /// <summary>Finds the migration step reading <paramref name="fromVersion"/> of a node type.</summary>
+    public bool TryGetMigration(
+        StableId nodeTypeId,
+        int fromVersion,
+        [NotNullWhen(true)] out NodeMigration? migration) =>
+        migrations.TryGetValue((nodeTypeId, fromVersion), out migration);
+}
