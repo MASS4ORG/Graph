@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Samples.Tests</AssemblyName>
+        <RootNamespace>MASS4.Graph.Samples.Tests</RootNamespace>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit" Version="1.76.28" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Graph.Interpreter\Graph.Interpreter.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.Samples.Compositor\Graph.Samples.Compositor.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.Samples.Fsm\Graph.Samples.Fsm.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.Samples.Shader\Graph.Samples.Shader.csproj" />
+    </ItemGroup>
+
+</Project>

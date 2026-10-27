@@ -1,0 +1,7 @@
+<Project>
+
+    <!-- Stops the import chain here, so an unrelated Directory.Build.targets further up is never picked up. -->
+    <!-- Uncomment to include the parent Directory.Build.targets file. -->
+    <!--<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))" />-->
+
+</Project>

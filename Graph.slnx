@@ -1,0 +1,29 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU"/>
+        <Platform Name="x64"/>
+        <Platform Name="x86"/>
+    </Configurations>
+    <Project Path=".nuke/Build.csproj">
+        <Build Solution="*|Any CPU" Project="false"/>
+    </Project>
+    <Project Path="Graph/Graph.csproj"/>
+    <Project Path="Graph.Generator/Graph.Generator.csproj"/>
+    <Project Path="Graph.Control/Graph.Control.csproj"/>
+    <Project Path="Graph.Dataflow/Graph.Dataflow.csproj"/>
+    <Project Path="Graph.Interpreter/Graph.Interpreter.csproj"/>
+    <Project Path="Graph.State/Graph.State.csproj"/>
+    <Folder Name="/Samples/">
+        <Project Path="Samples/Graph.AotSmoke/Graph.AotSmoke.csproj"/>
+        <Project Path="Samples/Graph.Samples.Compositor/Graph.Samples.Compositor.csproj"/>
+        <Project Path="Samples/Graph.Samples.Fsm/Graph.Samples.Fsm.csproj"/>
+        <Project Path="Samples/Graph.Samples.Shader/Graph.Samples.Shader.csproj"/>
+    </Folder>
+    <Folder Name="/Tests/">
+        <Project Path="Tests/Graph.Tests/Graph.Tests.csproj"/>
+        <Project Path="Tests/Graph.Generator.Tests/Graph.Generator.Tests.csproj"/>
+        <Project Path="Tests/Graph.Semantics.Tests/Graph.Semantics.Tests.csproj"/>
+        <Project Path="Tests/Graph.Interpreter.Tests/Graph.Interpreter.Tests.csproj"/>
+        <Project Path="Tests/Graph.Samples.Tests/Graph.Samples.Tests.csproj"/>
+    </Folder>
+</Solution>

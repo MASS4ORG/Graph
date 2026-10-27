@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Samples.Compositor</AssemblyName>
+        <RootNamespace>MASS4.Graph.Samples.Compositor</RootNamespace>
+        <Description>Contract sample: a headless video compositor with frame values, time from an evaluation-context feature and asynchronous rendering with progress and cancellation; it references no engine assembly.</Description>
+        <IsPackable>false</IsPackable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Graph.Generator\Graph.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\..\Graph.Dataflow\Graph.Dataflow.csproj" />
+    </ItemGroup>
+
+</Project>

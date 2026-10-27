@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.State</AssemblyName>
+        <RootNamespace>MASS4.Graph.State</RootNamespace>
+        <PackageId>MASS4.Graph.State</PackageId>
+        <Description>State-machine semantics for MASS4.Graph: cyclic states, typed triggers, guarded transitions and per-instance state and timers.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>©️ 2026 Bruno Massa</Copyright>
+        <PackageProjectUrl>https://github.com/MASS4ORG/Graph</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/MASS4ORG/Graph.git</RepositoryUrl>
+        <Version>0.1.0</Version>
+        <Authors>Bruno Massa</Authors>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="MASS4.Graph.Semantics.Tests" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Graph\Graph.csproj" />
+    </ItemGroup>
+
+</Project>

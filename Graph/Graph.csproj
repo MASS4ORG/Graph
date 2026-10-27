@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>MASS4.Graph</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+
+        <!-- NuGet Package Properties -->
+        <AssemblyName>MASS4.Graph</AssemblyName>
+        <PackageId>MASS4.Graph</PackageId>
+        <Description>Headless, domain-neutral node-graph model: stable identity, reversible commands, diagnostics, versioned persistence, blackboard and instance/evaluation contracts.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>©️ 2026 Bruno Massa</Copyright>
+        <PackageProjectUrl>https://github.com/MASS4ORG/Graph</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/MASS4ORG/Graph.git</RepositoryUrl>
+        <Version>0.1.0</Version>
+        <Authors>Bruno Massa</Authors>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="MASS4.Graph.Tests"/>
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+
+</Project>

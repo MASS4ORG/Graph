@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>MASS4.Graph.Generator</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <NoWarn>$(NoWarn);RS1041;NU5128</NoWarn>
+
+        <!-- NuGet Package Properties -->
+        <AssemblyName>MASS4.Graph.Generator</AssemblyName>
+        <PackageId>MASS4.Graph.Generator</PackageId>
+        <Version>0.1.0</Version>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/MASS4ORG/Graph.git</RepositoryUrl>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <Description>Compile-time graph registration and typed builders.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="AnalyzerReleases.Shipped.md"/>
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <AdditionalFiles Include="AnalyzerReleases.Unshipped.md"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all"/>
+        <None Include="$(OutputPath)/$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+    </ItemGroup>
+</Project>

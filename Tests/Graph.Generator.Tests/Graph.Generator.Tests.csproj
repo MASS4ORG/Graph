@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Generator.Tests</AssemblyName>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+    
+    <ItemGroup>
+        <ProjectReference Include="..\..\Graph.Generator\Graph.Generator.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.AotSmoke\Graph.AotSmoke.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.Samples.Compositor\Graph.Samples.Compositor.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.Samples.Fsm\Graph.Samples.Fsm.csproj" />
+        <ProjectReference Include="..\..\Samples\Graph.Samples.Shader\Graph.Samples.Shader.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit" Version="1.76.28" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all"/>
+    </ItemGroup>
+</Project>

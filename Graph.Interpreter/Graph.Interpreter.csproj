@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>MASS4.Graph</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+
+        <!-- NuGet Package Properties -->
+        <AssemblyName>MASS4.Graph.Interpreter</AssemblyName>
+        <RootNamespace>MASS4.Graph.Interpreter</RootNamespace>
+        <PackageId>MASS4.Graph.Interpreter</PackageId>
+        <Description>Reference backend for MASS4.Graph: interprets dataflow, control and state documents with live edit, and compares backends with a differential test harness.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>©️ 2026 Bruno Massa</Copyright>
+        <PackageProjectUrl>https://github.com/MASS4ORG/Graph</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/MASS4ORG/Graph.git</RepositoryUrl>
+        <Version>0.1.0</Version>
+        <Authors>Bruno Massa</Authors>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="MASS4.Graph.Interpreter.Tests" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Graph.Dataflow\Graph.Dataflow.csproj" />
+        <ProjectReference Include="..\Graph.Control\Graph.Control.csproj" />
+        <ProjectReference Include="..\Graph.State\Graph.State.csproj" />
+    </ItemGroup>
+
+</Project>

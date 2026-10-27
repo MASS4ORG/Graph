@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Interpreter.Tests</AssemblyName>
+        <RootNamespace>MASS4.Graph.Interpreter.Tests</RootNamespace>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit" Version="1.76.28" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\Graph.Semantics.Tests\Domain.cs" Link="Domain.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Graph.Interpreter\Graph.Interpreter.csproj"/>
+    </ItemGroup>
+
+</Project>
