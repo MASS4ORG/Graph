@@ -56,6 +56,10 @@ public sealed class ControlSemantics
         return this;
     }
 
+    /// <summary>Whether any node of the document has a control behavior.</summary>
+    public bool Participates(GraphDocument document) =>
+        document.Nodes.Any(node => behaviors.ContainsKey(node.TypeId));
+
     /// <summary>Finds the behavior bound to a node type.</summary>
     public bool TryGetBehavior(StableId nodeTypeId, [NotNullWhen(true)] out IControlNode? behavior) =>
         behaviors.TryGetValue(nodeTypeId, out behavior);

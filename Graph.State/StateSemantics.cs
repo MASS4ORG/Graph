@@ -65,6 +65,10 @@ public sealed class StateSemantics
         DiagnosticBag diagnostics) =>
         StateCompiler.Compile(this, document, layout, data, diagnostics);
 
+    /// <summary>Whether any node of the document has a state role, so the document contains a state machine.</summary>
+    public bool Participates(GraphDocument document) =>
+        document.Nodes.Any(node => RoleOf(node) != StateRole.None);
+
     internal StateRole RoleOf(GraphNode node) =>
         entries.Contains(node.TypeId) ? StateRole.Entry
         : states.ContainsKey(node.TypeId) ? StateRole.State

@@ -26,8 +26,10 @@ public sealed class StateMachineProgram
         int initial,
         Dictionary<StableId, int> triggerIndex,
         InstanceLayoutBuilder layout,
-        IDataPlane? data)
+        IDataPlane? data,
+        ElementId entryNodeId)
     {
+        EntryNodeId = entryNodeId;
         this.semantics = semantics;
         this.states = states;
         this.transitions = transitions;
@@ -42,6 +44,9 @@ public sealed class StateMachineProgram
 
     /// <summary>Number of states.</summary>
     public int StateCount => states.Length;
+
+    /// <summary>Identity of the entry node; tools report the machine's current state under it.</summary>
+    public ElementId EntryNodeId { get; }
 
     /// <summary>Resolves a trigger, following renames; false for triggers not registered at compile time.</summary>
     public bool TryResolveTrigger(StableId trigger, out TriggerHandle handle)
@@ -103,10 +108,20 @@ public sealed class StateMachineProgram
 
     /// <summary>The current state node of an instance.</summary>
     /// <exception cref="InvalidOperationException">The instance was neither initialized nor ticked.</exception>
-    public GraphNode CurrentState(InstanceBuffer instances, InstanceHandle instance)
+    public GraphNode CurrentState(InstanceBuffer instances, InstanceHandle instance) =>
+        TryGetCurrentState(instances, instance, out var state)
+            ? state
+            : throw new InvalidOperationException("The instance has not started.");
+
+    /// <summary>Finds the current state node of an instance; false before the instance started.</summary>
+    public bool TryGetCurrentState(
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        [NotNullWhen(true)] out GraphNode? state)
     {
-        var state = instances.Get(instance, current) - 1;
-        return state >= 0 ? states[state].Node : throw new InvalidOperationException("The instance has not started.");
+        var index = instances.Get(instance, current) - 1;
+        state = index >= 0 ? states[index].Node : null;
+        return state is not null;
     }
 
     /// <summary>Seconds since an instance entered its current state.</summary>

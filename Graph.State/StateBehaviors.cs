@@ -15,6 +15,16 @@ public sealed class TriggerType(StableId id, string displayName) : ITypeIdentity
     public string DisplayName { get; } = displayName;
 }
 
+/// <summary>
+/// Evaluation-context feature carrying the time step of the current evaluation; backends that tick state machines
+/// read it, so hosts set it once per frame.
+/// </summary>
+public sealed class StateTime
+{
+    /// <summary>Seconds elapsed since the previous evaluation.</summary>
+    public double DeltaSeconds { get; set; }
+}
+
 /// <summary>Index of a trigger in a compiled state machine; resolve once and raise without lookups.</summary>
 /// <param name="Index">Position among the machine's triggers.</param>
 public readonly record struct TriggerHandle(int Index);

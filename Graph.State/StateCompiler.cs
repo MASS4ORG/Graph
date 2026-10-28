@@ -24,7 +24,12 @@ static class StateCompiler
         {
             diagnostics.Add(diagnostic);
         }
-        return local.HasErrors ? null : Build(semantics, stateNodes, links, initial, layout, data);
+        if (local.HasErrors)
+        {
+            return null;
+        }
+        var entry = nodes.First(node => semantics.RoleOf(node) == StateRole.Entry).Id;
+        return Build(semantics, stateNodes, links, (initial, entry), layout, data);
     }
 
     /// <summary>Resolves the source and target state of every transition, reporting unjoined ones.</summary>
@@ -54,7 +59,7 @@ static class StateCompiler
         StateSemantics semantics,
         GraphNode[] stateNodes,
         List<Link> links,
-        int initial,
+        (int State, ElementId Entry) initial,
         InstanceLayoutBuilder layout,
         IDataPlane? data)
     {
@@ -76,7 +81,8 @@ static class StateCompiler
             states[s] = new(node, behavior, AddPorts(node, data, dataPorts), memory, behavior.MemorySize,
                 firstTransition, transitions.Count - firstTransition);
         }
-        return new(semantics, states, [.. transitions], [.. dataPorts], initial, triggers, layout, data);
+        return new(semantics, states, [.. transitions], [.. dataPorts], initial.State, triggers, layout, data,
+            initial.Entry);
     }
 
     static TransitionEntry Transition(

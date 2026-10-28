@@ -47,10 +47,16 @@ public sealed record GraphSource(GraphDocument Document)
     public GraphTypeRegistry Registry => Document.Registry;
 }
 
+/// <summary>One observable value of an instance, keyed by the element it belongs to.</summary>
+/// <param name="Element">A data port, or the element state is reported under (such as a state machine entry).</param>
+/// <param name="Value">The value; unmanaged values are boxed.</param>
+public readonly record struct GraphObservation(ElementId Element, object? Value);
+
 /// <summary>
 /// An executable form of one graph asset. It owns no instance state: callers allocate instances in an
 /// <see cref="InstanceBuffer"/> built from <see cref="InstanceLayout"/>, so one artifact serves any number of
-/// instances.
+/// instances. Host inputs and observations are expressed in document identities, so different backends of the same
+/// asset can be driven and compared identically.
 /// </summary>
 public interface ICompiledGraph
 {
@@ -61,10 +67,29 @@ public interface ICompiledGraph
     InstanceLayout InstanceLayout { get; }
 
     /// <summary>Prepares a freshly allocated instance, for example by entering the initial state.</summary>
-    void Initialize(InstanceBuffer instances, InstanceHandle instance);
+    void Initialize(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance);
 
-    /// <summary>Evaluates one instance; synchronous backends complete without allocating.</summary>
+    /// <summary>
+    /// Evaluates one instance. The shape is asynchronous so long-running backends can await; synchronous backends
+    /// complete immediately without allocating.
+    /// </summary>
     ValueTask EvaluateAsync(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance);
+
+    /// <summary>Raises a typed signal, such as a state trigger, for the next evaluation; false when unknown.</summary>
+    bool Raise(InstanceBuffer instances, InstanceHandle instance, StableId signal);
+
+    /// <summary>Sets a blackboard variable of an instance; false when unknown or of another type.</summary>
+    bool SetVariable(InstanceBuffer instances, InstanceHandle instance, ElementId variable, object? value);
+
+    /// <summary>
+    /// Adds every observable value of an instance (data outputs, current states) to <paramref name="observations"/>,
+    /// for differential testing and inspection tools. Values are boxed; keep this off per-tick paths.
+    /// </summary>
+    void Observe(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        ICollection<GraphObservation> observations);
 }
 
 /// <summary>Outcome of compiling a graph.</summary>
