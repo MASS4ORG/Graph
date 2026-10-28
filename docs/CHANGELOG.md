@@ -15,4 +15,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MASS4.Graph.Control`: exec flow with deterministic ordering, early-out, node memory and tick entries #14
 - `MASS4.Graph.State`: state machines with typed triggers, guarded transitions and per-instance state and timers #15
 - `MASS4.Graph.Interpreter`: reference backend for mixed documents with a live-edit session; `ICompiledGraph` gains signals, variables and observations #17
+- `DifferentialHarness`: scenario-driven comparison of any backend with the interpreter, reporting divergences by step, instance and element #18
 - `IDataPlane`, instance array and reference slots, and `GraphDocument.GetNode`/`GetPort` so semantics compose in one document #16

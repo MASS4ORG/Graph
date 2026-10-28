@@ -33,6 +33,12 @@ var instances = new InstanceBuffer(layout.Build(), capacity: 1000);
 machine.Tick(context, instances, instances.Allocate(), deltaSeconds);
 ```
 
+## Interpreter and differential testing
+
+`MASS4.Graph.Interpreter` is the always-available reference backend. `GraphInterpreter` compiles a document with every semantics it participates in into an `InterpretedGraph` (`ICompiledGraph`): one evaluation starts a new data evaluation, ticks the state machine by the context's `StateTime`, then runs control tick entries, synchronously and without allocating. `InterpreterSession` gives editors live edit: it recompiles on the first evaluation after a document change and keeps the last good graph running when an edit breaks compilation.
+
+`DifferentialHarness` runs a `Scenario` (evaluations, signals, variable writes, host input changes) against a reference and a candidate backend and reports every observation that differs, by step, instance and element identity. Generated backends must be equivalent to the interpreter on every sample.
+
 ## Example
 
 ```csharp
