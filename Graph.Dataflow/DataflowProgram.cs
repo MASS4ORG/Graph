@@ -5,7 +5,7 @@ namespace MASS4.Graph.Dataflow;
 /// once per evaluation for volatile dependencies and once per instance otherwise. Slots live in the shared instance
 /// layout, so one program serves every instance; evaluating different instances concurrently is safe.
 /// </summary>
-public sealed class DataflowProgram : IDataPlane
+public sealed partial class DataflowProgram : IDataPlane
 {
     const int StaticEpoch = -1;
 
@@ -16,21 +16,25 @@ public sealed class DataflowProgram : IDataPlane
     readonly Dictionary<ElementId, int> nodeIndex;
     readonly InstanceSlot<int> epochCounter;
     readonly InstanceArraySlot<int> epochs;
+    readonly InstanceSlot<byte> initialized;
+    readonly Dictionary<ElementId, VariableSlot> variables;
 
     internal DataflowProgram(
         GraphDocument document,
         NodeEntry[] nodes,
         PortEntry[] ports,
         int[] sources,
-        InstanceSlot<int> epochCounter,
-        InstanceArraySlot<int> epochs)
+        ProgramSlots slots,
+        Dictionary<ElementId, VariableSlot> variables)
     {
         Document = document;
         this.nodes = nodes;
         this.ports = ports;
         this.sources = sources;
-        this.epochCounter = epochCounter;
-        this.epochs = epochs;
+        this.variables = variables;
+        epochCounter = slots.EpochCounter;
+        epochs = slots.Epochs;
+        initialized = slots.Initialized;
         nodeIndex = new(nodes.Length);
         portIndex = new(ports.Length);
         for (var i = 0; i < nodes.Length; i++)
@@ -61,6 +65,7 @@ public sealed class DataflowProgram : IDataPlane
     /// <inheritdoc />
     public void BeginEvaluation(InstanceBuffer instances, InstanceHandle instance)
     {
+        EnsureInitialized(instances, instance);
         ref var counter = ref instances.Get(instance, epochCounter);
         if (counter >= int.MaxValue - 1)
         {
@@ -175,6 +180,7 @@ public sealed class DataflowProgram : IDataPlane
 
     void Prepare(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance, int port)
     {
+        EnsureInitialized(instances, instance);
         var entry = ports[port];
         var owner = entry.IsOutput ? entry.Node : entry.SourceNode;
         if (owner >= 0)
@@ -268,6 +274,15 @@ readonly record struct NodeEntry(
     int FirstSource,
     int SourceCount,
     bool IsStatic);
+
+/// <summary>Instance slots every program reserves besides its port values.</summary>
+readonly record struct ProgramSlots(
+    InstanceSlot<int> EpochCounter,
+    InstanceArraySlot<int> Epochs,
+    InstanceSlot<byte> Initialized);
+
+/// <summary>Per-instance storage of one blackboard variable and the default it starts from.</summary>
+readonly record struct VariableSlot(ValueLocation Location, object? Default);
 
 /// <summary>One port of a compiled program; a null location marks ports without data.</summary>
 readonly record struct PortEntry(

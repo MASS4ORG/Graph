@@ -23,6 +23,13 @@ sealed class TypeInference
     public static TypeInference Run(DataflowSemantics semantics, GraphDocument document)
     {
         var inference = new TypeInference();
+        foreach (var node in document.Nodes.OrderBy(static node => node.Id))
+        {
+            if (DataflowNodes.TryGetVariable(document, node, out var variable))
+            {
+                inference.Bind(inference.Find(inference.VariableOf(node.Id)), variable.TypeId, node.Id);
+            }
+        }
         foreach (var edge in document.Edges.OrderBy(static edge => edge.Id))
         {
             if (semantics.IsDataEdge(document, edge, out var source, out var target))
@@ -77,7 +84,7 @@ sealed class TypeInference
         }
     }
 
-    void Bind(int root, StableId concrete, ElementId edge)
+    void Bind(int root, StableId concrete, ElementId element)
     {
         if (bindings[root] is not { } bound)
         {
@@ -85,7 +92,7 @@ sealed class TypeInference
         }
         else if (bound != concrete)
         {
-            Diagnostics.Add(new(DataflowDiagnosticIds.TypeConflict, DiagnosticSeverity.Error, edge,
+            Diagnostics.Add(new(DataflowDiagnosticIds.TypeConflict, DiagnosticSeverity.Error, element,
                 $"Wildcard ports would carry both {bound} and {concrete}."));
         }
     }

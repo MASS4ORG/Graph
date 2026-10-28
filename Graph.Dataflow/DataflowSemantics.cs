@@ -11,14 +11,21 @@ public sealed class DataflowSemantics
     readonly Dictionary<(StableId Source, StableId Target), Coercion> coercions = [];
     readonly Dictionary<StableId, IDataflowNode> behaviors = [];
 
-    /// <summary>Creates dataflow semantics with no registered types or nodes.</summary>
-    public DataflowSemantics() =>
-        Rules = [new DataflowAcyclicRule(this), new DataflowInputRule(this), new DataflowInferenceRule(this)];
+    /// <summary>Creates dataflow semantics with only the built-in variable-read node bound.</summary>
+    public DataflowSemantics()
+    {
+        Rules =
+        [
+            new DataflowAcyclicRule(this), new DataflowInputRule(this), new DataflowInferenceRule(this),
+            new DataflowVariableRule(this),
+        ];
+        AddNode(DataflowNodes.GetVariable.Id, VariableNode.Instance);
+    }
 
     /// <summary>Compatibility strategy: exact types, wildcards, registered coercions and conversion nodes.</summary>
     public ConversionTable Conversions { get; } = new();
 
-    /// <summary>Rules editors run on every change: acyclic data edges, single data inputs, type inference.</summary>
+    /// <summary>Rules editors run on every change: acyclic edges, single inputs, inference, variable reads.</summary>
     public IReadOnlyList<IGraphRule> Rules { get; }
 
     /// <summary>Registers a port type whose values are stored inline as <typeparamref name="T"/>.</summary>
@@ -135,4 +142,10 @@ public static class DataflowDiagnosticIds
 
     /// <summary>A data edge joins types with different storage and no registered coercion.</summary>
     public const string CoercionMissing = "MG1005";
+
+    /// <summary>A variable-read node references a variable that does not exist.</summary>
+    public const string VariableNotFound = "MG1006";
+
+    /// <summary>A variable-read node references a variable whose type dataflow cannot carry.</summary>
+    public const string VariableNotData = "MG1007";
 }

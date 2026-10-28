@@ -63,12 +63,21 @@ static class DataflowCompiler
             ports = new PortEntry[count];
         }
 
+        readonly Dictionary<ElementId, VariableSlot> variables = [];
+
         public void LayOutPorts()
         {
+            foreach (var variable in document.Variables.OrderBy(static variable => variable.Id))
+            {
+                if (semantics.TryGetValueType(variable.TypeId, out var type))
+                {
+                    variables.Add(variable.Id, new(type.Allocate(layout), variable.DefaultValue));
+                }
+            }
             ForEachPort((node, port, flat) =>
             {
                 types[flat] = ValueTypeOf(port);
-                var location = port.Direction == PortDirection.Output ? types[flat]?.Allocate(layout) : null;
+                var location = port.Direction == PortDirection.Output ? OutputLocation(node, flat) : null;
                 ports[flat] = new(node, port.Direction == PortDirection.Output, location, -1, null, 0);
             });
             ForEachPort((node, port, flat) =>
@@ -99,10 +108,16 @@ static class DataflowCompiler
                 nodes[i] = new(graphNodes[i], behavior, firstPorts[i], first, sources.Count - first, false);
             }
             MarkStatic(nodes, sources);
-            var counter = layout.Add<int>();
-            var epochs = layout.AddArray<int>(nodes.Length);
-            return new(document, nodes, ports, [.. sources], counter, epochs);
+            var slots = new ProgramSlots(layout.Add<int>(), layout.AddArray<int>(nodes.Length), layout.Add<byte>());
+            return new(document, nodes, ports, [.. sources], slots, variables);
         }
+
+        /// <summary>Variable reads alias their variable's slot; other outputs get slots of their own.</summary>
+        ValueLocation? OutputLocation(int node, int flat) =>
+            DataflowNodes.TryGetVariable(document, graphNodes[node], out var variable) &&
+            variables.TryGetValue(variable.Id, out var slot)
+                ? slot.Location
+                : types[flat]?.Allocate(layout);
 
         void ForEachPort(Action<int, GraphPort, int> action)
         {

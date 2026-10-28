@@ -32,6 +32,15 @@ public abstract class DataflowValueType
     internal abstract ValueLocation Allocate(InstanceLayoutBuilder layout);
 
     internal abstract void Copy(InstanceBuffer instances, InstanceHandle instance, int source, int target);
+
+    /// <summary>Reads a value as an object; boxes unmanaged values, so keep it off per-tick paths.</summary>
+    internal abstract object? ReadBoxed(InstanceBuffer instances, InstanceHandle instance, int offset);
+
+    /// <summary>Writes an object value; anything not of the stored type writes the default.</summary>
+    internal abstract void WriteBoxed(InstanceBuffer instances, InstanceHandle instance, int offset, object? value);
+
+    /// <summary>Whether an object value can be stored as this type.</summary>
+    internal abstract bool Accepts(object? value);
 }
 
 sealed class UnmanagedValueType<T>(StableId portTypeId)
@@ -41,6 +50,14 @@ sealed class UnmanagedValueType<T>(StableId portTypeId)
 
     internal override void Copy(InstanceBuffer instances, InstanceHandle instance, int source, int target) =>
         instances.Get(instance, new InstanceSlot<T>(target)) = instances.Get(instance, new InstanceSlot<T>(source));
+
+    internal override object? ReadBoxed(InstanceBuffer instances, InstanceHandle instance, int offset) =>
+        instances.Get(instance, new InstanceSlot<T>(offset));
+
+    internal override void WriteBoxed(InstanceBuffer instances, InstanceHandle instance, int offset, object? value) =>
+        instances.Get(instance, new InstanceSlot<T>(offset)) = value is T typed ? typed : default;
+
+    internal override bool Accepts(object? value) => value is T;
 }
 
 sealed class ReferenceValueType<T>(StableId portTypeId)
@@ -52,6 +69,14 @@ sealed class ReferenceValueType<T>(StableId portTypeId)
     internal override void Copy(InstanceBuffer instances, InstanceHandle instance, int source, int target) =>
         instances.SetReference(instance, new InstanceReferenceSlot<T>(target),
             instances.GetReference(instance, new InstanceReferenceSlot<T>(source)));
+
+    internal override object? ReadBoxed(InstanceBuffer instances, InstanceHandle instance, int offset) =>
+        instances.GetReference(instance, new InstanceReferenceSlot<T>(offset));
+
+    internal override void WriteBoxed(InstanceBuffer instances, InstanceHandle instance, int offset, object? value) =>
+        instances.SetReference(instance, new InstanceReferenceSlot<T>(offset), value as T);
+
+    internal override bool Accepts(object? value) => value is null or T;
 }
 
 /// <summary>Where one port value lives in an instance: a byte offset or a reference index.</summary>

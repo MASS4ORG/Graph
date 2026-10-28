@@ -38,7 +38,7 @@ static class Domain
 {
     static int nextKey = 1000;
 
-    public static readonly PortType Number = new(Id(1), "number");
+    public static readonly PortType Number = new(Id(1), "number") { ValueSerializer = new NumberSerializer() };
     public static readonly PortType Bool = new(Id(2), "bool");
     public static readonly PortType Int = new(Id(3), "int");
     public static readonly PortType Text = new(Id(4), "text");
@@ -88,6 +88,7 @@ static class Domain
         }
         ControlSemantics.RegisterTypes(registry);
         StateNodes.Register(registry);
+        DataflowNodes.Register(registry);
         NodeType[] nodes =
         [
             Constant, Add, Scale, GreaterThan, Not, Speed, Relay, IntConstant, NumberToText, TextLength, Collect,
@@ -240,6 +241,15 @@ static class Domain
     static PortDeclaration Out(PortType type) => PortDeclaration.Output(Key(), type.DisplayName, type.Id);
 
     static StableId Key() => Id(nextKey++);
+
+    /// <summary>Saves number defaults as JSON numbers.</summary>
+    sealed class NumberSerializer : IValueSerializer
+    {
+        public void Write(System.Text.Json.Utf8JsonWriter writer, object? value) =>
+            writer.WriteNumberValue((double)value!);
+
+        public object? Read(System.Text.Json.JsonElement element) => element.GetDouble();
+    }
 
     /// <summary>Publishes its time in state on its data output.</summary>
     sealed class WalkState : IStateNode
