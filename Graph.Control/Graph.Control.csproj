@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Control</AssemblyName>
+        <RootNamespace>MASS4.Graph.Control</RootNamespace>
+        <PackageId>MASS4.Graph.Control</PackageId>
+        <Description>Control-flow semantics for MASS4.Graph: exec ports, deterministic ordering, early-out, node memory and tick entries.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>©️ 2026 Bruno Massa</Copyright>
+        <PackageProjectUrl>https://github.com/MASS4ORG/Graph</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/MASS4ORG/Graph.git</RepositoryUrl>
+        <Version>0.1.0</Version>
+        <Authors>Bruno Massa</Authors>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="MASS4.Graph.Semantics.Tests" />
+        <None Include="..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Graph\Graph.csproj" />
+    </ItemGroup>
+
+</Project>

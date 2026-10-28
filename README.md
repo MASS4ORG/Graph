@@ -15,6 +15,24 @@ The core has no GUI, engine or framework dependency and is trimming- and AOT-saf
 - **Blackboard and subgraphs**: typed variables (local, input, output, external) reuse the port type system; a subgraph's exposed variables define the ports of the node referencing it.
 - **Instances and evaluation**: assets hold no instance state. Semantics declare per-instance slots through `InstanceLayoutBuilder`; `InstanceBuffer` stores many instances contiguously without per-access allocation. `IGraphBackend` and `ICompiledGraph` define the compilation boundary with progress and cancellation.
 
+## Semantics packages
+
+Each package depends only on the core and claims its own port types, so one document can mix them: state cycles stay legal while data edges stay acyclic. Control and state nodes read guards and publish outputs through the core `IDataPlane`, which the dataflow program implements.
+
+- **`MASS4.Graph.Dataflow`**: register value types, coercions and node behaviors on `DataflowSemantics`; `Compile` returns a `DataflowProgram` that pulls values on demand, caches non-volatile results per instance and infers wildcard port types.
+- **`MASS4.Graph.Control`**: exec ports, depth-first execution in request order, early-out, per-instance node memory, tick entries and step/stack limits.
+- **`MASS4.Graph.State`**: entry, state and transition nodes; typed triggers resolved through a rename-aware registry; priority-ordered guarded transitions; per-instance current state and time in state.
+
+Programs reserve their slots in a shared `InstanceLayoutBuilder`, so one `InstanceBuffer` holds the state of every semantics for every instance:
+
+```csharp
+var layout = new InstanceLayoutBuilder();
+var data = dataflow.Compile(document, layout, diagnostics)!;
+var machine = states.Compile(document, layout, data, diagnostics)!;
+var instances = new InstanceBuffer(layout.Build(), capacity: 1000);
+machine.Tick(context, instances, instances.Allocate(), deltaSeconds);
+```
+
 ## Example
 
 ```csharp

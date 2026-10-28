@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Semantics.Tests</AssemblyName>
+        <RootNamespace>MASS4.Graph.Semantics.Tests</RootNamespace>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit" Version="1.75.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Graph.Dataflow\Graph.Dataflow.csproj" />
+        <ProjectReference Include="..\Graph.Control\Graph.Control.csproj" />
+        <ProjectReference Include="..\Graph.State\Graph.State.csproj" />
+    </ItemGroup>
+
+</Project>

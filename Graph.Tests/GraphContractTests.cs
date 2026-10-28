@@ -120,6 +120,10 @@ public class GraphContractTests
         editor.AddNode(Constant);
         var node = editor.Document.Nodes.Single();
 
+        await Assert.That(editor.Document.GetNode(node.Id)).IsSameReferenceAs(node);
+        await Assert.That(() => editor.Document.GetNode(ElementId.New())).ThrowsExactly<KeyNotFoundException>();
+        await Assert.That(editor.Document.GetPort(node.Ports[0].Id)).IsSameReferenceAs(node.Ports[0]);
+        await Assert.That(() => editor.Document.GetPort(ElementId.New())).ThrowsExactly<KeyNotFoundException>();
         await Assert.That(node.TryGetPort(SumKey, out _)).IsFalse();
         await Assert.That(() => node.GetPort(SumKey)).ThrowsExactly<KeyNotFoundException>();
         await Assert.That(node.GetPort(ValueKey).TypeId).IsEqualTo(NumberId);

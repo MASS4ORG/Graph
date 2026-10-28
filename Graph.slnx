@@ -8,5 +8,9 @@
         <Build Solution="*|Any CPU" Project="false"/>
     </Project>
     <Project Path="Graph/Graph.csproj"/>
+    <Project Path="Graph.Control/Graph.Control.csproj"/>
+    <Project Path="Graph.Dataflow/Graph.Dataflow.csproj"/>
+    <Project Path="Graph.State/Graph.State.csproj"/>
     <Project Path="Graph.Tests/Graph.Tests.csproj"/>
+    <Project Path="Graph.Semantics.Tests/Graph.Semantics.Tests.csproj"/>
 </Solution>

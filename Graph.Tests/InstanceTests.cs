@@ -49,87 +49,45 @@ public class InstanceTests
     }
 
     [Test]
-    public async Task OneAssetThousandInstancesTickWithoutAllocating()
+    public async Task ArraySlotsAreAlignedAndIndependentPerInstance()
     {
-        var editor = CreateEditor();
-        var idle = editor.AddNode(State);
-        var walk = editor.AddNode(State);
-        editor.Connect(idle.PortId(ExitKey), walk.PortId(EnterKey));
-        editor.Connect(walk.PortId(ExitKey), idle.PortId(EnterKey));
-        var compiled = new TogglingStateMachine(editor.Document);
-        var instances = new InstanceBuffer(compiled.InstanceLayout, 1000);
-        var handles = new InstanceHandle[1000];
-        for (var i = 0; i < handles.Length; i++)
-        {
-            handles[i] = instances.Allocate();
-            compiled.Initialize(instances, handles[i]);
-        }
-        var context = new EvaluationContext();
+        var builder = new InstanceLayoutBuilder();
+        var flag = builder.Add<byte>();
+        var timers = builder.AddArray<double>(3);
+        var empty = builder.AddArray<int>(0);
+        var buffer = new InstanceBuffer(builder.Build(), capacity: 1);
+        var first = buffer.Allocate();
+        var second = buffer.Allocate();
 
-        Tick(compiled, context, instances, handles);
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var frame = 0; frame < 9; frame++)
-        {
-            Tick(compiled, context, instances, handles);
-        }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        buffer.GetSpan(first, timers)[2] = 1.5;
+        buffer.Get(second, flag) = 1;
 
-        await Assert.That(allocated).IsEqualTo(0);
-        await Assert.That(compiled.CurrentState(instances, handles[0])).IsEqualTo(0);
-        await Assert.That(compiled.Ticks(instances, handles[999])).IsEqualTo(10);
+        await Assert.That(timers.Offset).IsEqualTo(8);
+        await Assert.That(buffer.Layout.Stride).IsEqualTo(32);
+        await Assert.That(buffer.GetSpan(first, timers)[2]).IsEqualTo(1.5);
+        await Assert.That(buffer.GetSpan(second, timers)[2]).IsEqualTo(0);
+        await Assert.That(buffer.GetSpan(first, empty).Length).IsEqualTo(0);
+        await Assert.That(() => builder.AddArray<int>(-1)).ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
-    static void Tick(
-        ICompiledGraph graph,
-        EvaluationContext context,
-        InstanceBuffer instances,
-        InstanceHandle[] handles)
+    [Test]
+    public async Task ReferenceSlotsSurviveGrowthAndClearOnRelease()
     {
-        foreach (var handle in handles)
-        {
-            var evaluation = graph.EvaluateAsync(context, instances, handle);
-            if (!evaluation.IsCompleted)
-            {
-                throw new InvalidOperationException("The test artifact must complete synchronously.");
-            }
-            evaluation.GetAwaiter().GetResult();
-        }
-    }
+        var builder = new InstanceLayoutBuilder();
+        var frame = builder.AddReference<string>();
+        var label = builder.AddReference<string>();
+        var buffer = new InstanceBuffer(builder.Build(), capacity: 1);
+        var first = buffer.Allocate();
+        buffer.SetReference(first, label, "kept");
+        var second = buffer.Allocate();
+        buffer.SetReference(second, frame, "frame");
 
-    /// <summary>A hand-written stand-in for a compiled state machine that alternates states each tick.</summary>
-    sealed class TogglingStateMachine : ICompiledGraph
-    {
-        readonly InstanceSlot<int> state;
-        readonly InstanceSlot<int> ticks;
-        readonly InstanceSlot<float> timer;
+        buffer.Release(second);
+        var reused = buffer.Allocate();
 
-        public TogglingStateMachine(GraphDocument document)
-        {
-            AssetId = document.AssetId;
-            var builder = new InstanceLayoutBuilder();
-            state = builder.Add<int>();
-            ticks = builder.Add<int>();
-            timer = builder.Add<float>();
-            InstanceLayout = builder.Build();
-        }
-
-        public StableId AssetId { get; }
-
-        public InstanceLayout InstanceLayout { get; }
-
-        public void Initialize(InstanceBuffer instances, InstanceHandle instance) => instances.Get(instance, state) = 0;
-
-        public ValueTask EvaluateAsync(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance)
-        {
-            ref var current = ref instances.Get(instance, state);
-            current = 1 - current;
-            instances.Get(instance, ticks)++;
-            instances.Get(instance, timer) += 1f / 60f;
-            return ValueTask.CompletedTask;
-        }
-
-        public int CurrentState(InstanceBuffer instances, InstanceHandle instance) => instances.Get(instance, state);
-
-        public int Ticks(InstanceBuffer instances, InstanceHandle instance) => instances.Get(instance, ticks);
+        await Assert.That(buffer.Layout.ReferenceCount).IsEqualTo(2);
+        await Assert.That(buffer.GetReference(first, label)).IsEqualTo("kept");
+        await Assert.That(buffer.GetReference(first, frame)).IsNull();
+        await Assert.That(buffer.GetReference(reused, frame)).IsNull();
     }
 }

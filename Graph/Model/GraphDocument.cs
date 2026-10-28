@@ -52,6 +52,16 @@ public sealed class GraphDocument
     /// <summary>Finds a node.</summary>
     public bool TryGetNode(ElementId id, [NotNullWhen(true)] out GraphNode? node) => nodes.TryGetValue(id, out node);
 
+    /// <summary>Finds a node or throws.</summary>
+    /// <exception cref="KeyNotFoundException">The document has no such node.</exception>
+    public GraphNode GetNode(ElementId id) =>
+        nodes.TryGetValue(id, out var node) ? node : throw new KeyNotFoundException($"Node {id} does not exist.");
+
+    /// <summary>Finds a port on any node or throws.</summary>
+    /// <exception cref="KeyNotFoundException">The document has no such port.</exception>
+    public GraphPort GetPort(ElementId id) =>
+        ports.TryGetValue(id, out var port) ? port : throw new KeyNotFoundException($"Port {id} does not exist.");
+
     /// <summary>Finds a port on any node.</summary>
     public bool TryGetPort(ElementId id, [NotNullWhen(true)] out GraphPort? port) => ports.TryGetValue(id, out port);
 

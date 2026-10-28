@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `MASS4.Graph` core: headless graph model, stable identity registry, reversible commands with undo, diagnostics, versioned JSON persistence, blackboard, subgraph contracts and instance/evaluation contracts
+- `MASS4.Graph.Dataflow`: pull evaluation with per-instance caching, acyclicity, coercions and wildcard inference #13
+- `MASS4.Graph.Control`: exec flow with deterministic ordering, early-out, node memory and tick entries #14
+- `MASS4.Graph.State`: state machines with typed triggers, guarded transitions and per-instance state and timers #15
+- `IDataPlane`, instance array and reference slots, and `GraphDocument.GetNode`/`GetPort` so semantics compose in one document #16
