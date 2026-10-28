@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Samples.Fsm</AssemblyName>
+        <RootNamespace>MASS4.Graph.Samples.Fsm</RootNamespace>
+        <Description>Contract sample: a guard state machine with cyclic states, a self-transition, typed triggers, dataflow guards and timed transitions, run as one asset across many instances.</Description>
+        <IsPackable>false</IsPackable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Graph.Interpreter\Graph.Interpreter.csproj" />
+    </ItemGroup>
+
+</Project>

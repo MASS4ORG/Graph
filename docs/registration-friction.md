@@ -53,3 +53,41 @@ Requirement: a generated typed builder that returns typed port handles, so conne
 The renderer must be handed the albedo input port of the material output node; the document has no notion of the outputs a host reads.
 
 Requirement (core, not generator): a declared output role, for example output-scope blackboard variables that a set-variable node writes, so hosts read outputs by variable identity.
+
+## From the FSM sample (#22)
+
+### R9 — Custom transition payloads lose trigger and priority (core)
+
+`AfterPayload` cannot also carry a trigger or a priority: `TransitionPayload` is sealed, and both `ITransitionNode.Priority` and `TransitionContext.TriggerSatisfied` understand only `TransitionPayload`. A timed transition that should also wait for a trigger would re-implement both.
+
+Requirement (core, State): a payload contract such as `ITransitionPayload { Trigger; Priority }` that custom payloads implement; generated payloads compose the standard fields.
+
+### R10 — State roles are yet another registration surface
+
+Each state or transition type is bound with `AddState` or `AddTransition` on `StateSemantics`, separately from its `NodeType` registration. The attack state's data output also depends on a dataflow value type registered elsewhere. Three registries must agree on one node.
+
+Requirement: the node declaration names its role and behavior; the generator emits the binding with the type (extends R3).
+
+### R11 — Trigger identities and renames live in a different registry
+
+Triggers are registered in `StateSemantics.Triggers`, not `GraphTypeRegistry`, so one asset's identities are split across registries. Simulating a release that renames a trigger meant restructuring `CreateState` with a branch: the old identity must stop being registered and become a rename entry (registering both throws).
+
+Requirement: trigger declarations and `[RenamedFrom]`-style rename entries are emitted together into the semantics registry, with a build-time check that a renamed identity is never also registered.
+
+### R12 — State behaviors also publish by port index
+
+`AttackState` writes port 2. `StateContext.PortIndex(key)` exists as a workaround but scans the ports on every call.
+
+Requirement: the typed accessors of R2 cover state and control behaviors too.
+
+### R13 — Transitions take three commands each
+
+Every transition is add node, wire `from`, wire `to`; the sample wraps this in a `Join` helper.
+
+Requirement: the generated builder of R7 offers `machine.Transition(from, to, payload)`.
+
+### R14 — Per-instance host input is addressed by element identity
+
+The guard's distance is an external variable written with `SetVariable(instance, distance.Id, value)`; hosts must carry the variable's `ElementId`.
+
+Requirement: generated, typed variable handles per asset (`guard.Distance.Set(instance, 3.0)`) resolved once.
