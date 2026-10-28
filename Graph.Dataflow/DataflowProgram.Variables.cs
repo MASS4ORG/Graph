@@ -81,6 +81,64 @@ public sealed partial class DataflowProgram
         return true;
     }
 
+    /// <summary>Sets an unmanaged variable without boxing; false when unknown or of another type.</summary>
+    public bool TrySetVariable<T>(InstanceBuffer instances, InstanceHandle instance, ElementId variableId, T value)
+        where T : unmanaged
+    {
+        if (!variables.TryGetValue(variableId, out var slot) || slot.Location.Type.ClrType != typeof(T) ||
+            slot.Location.Type.Storage != ValueStorage.Unmanaged)
+        {
+            return false;
+        }
+        EnsureInitialized(instances, instance);
+        slot.Location.Write(instances, instance, value);
+        Invalidate(instances, instance);
+        return true;
+    }
+
+    /// <summary>Returns the current value of a declared output, evaluating whatever defines it.</summary>
+    /// <exception cref="KeyNotFoundException">The document declares no such output.</exception>
+    /// <exception cref="InvalidOperationException">The output is not of type <typeparamref name="T"/>.</exception>
+    public T ReadOutput<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        ElementId output)
+        where T : unmanaged =>
+        OutputPort(output) is var port and >= 0
+            ? Read<T>(context, instances, instance, port)
+            : GetVariable<T>(instances, instance, output);
+
+    /// <summary>Returns the current object value of a declared output, evaluating whatever defines it.</summary>
+    /// <exception cref="KeyNotFoundException">The document declares no such output.</exception>
+    /// <exception cref="InvalidOperationException">The output is not of type <typeparamref name="T"/>.</exception>
+    public T? ReadOutputReference<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        ElementId output)
+        where T : class =>
+        OutputPort(output) is var port and >= 0
+            ? ReadReference<T>(context, instances, instance, port)
+            : GetVariableReference<T>(instances, instance, output);
+
+    /// <summary>Returns the current value of a declared output as an object, for tools and harnesses.</summary>
+    /// <exception cref="KeyNotFoundException">The document declares no such output.</exception>
+    public object? ReadOutputBoxed(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        ElementId output)
+    {
+        if (OutputPort(output) is var port and >= 0)
+        {
+            return ReadBoxed(context, instances, instance, port);
+        }
+        EnsureInitialized(instances, instance);
+        var location = VariableAt(output);
+        return location.Type.ReadBoxed(instances, instance, location.Offset);
+    }
+
     /// <summary>Returns the current value of a data port as an object, for tools and differential testing.</summary>
     /// <remarks>Unmanaged values are boxed; keep this off per-tick paths.</remarks>
     public object? ReadBoxed(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance, int port)
@@ -102,6 +160,11 @@ public sealed partial class DataflowProgram
             Initialize(instances, instance);
         }
     }
+
+    int OutputPort(ElementId output) =>
+        outputs.TryGetValue(output, out var port)
+            ? port
+            : throw new KeyNotFoundException($"The document declares no output {output}.");
 
     ValueLocation VariableAt(ElementId variableId) =>
         variables.TryGetValue(variableId, out var slot)

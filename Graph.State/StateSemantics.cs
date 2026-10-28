@@ -20,10 +20,10 @@ public sealed class StateSemantics
         AddTransition(StateNodes.Transition.Id, TriggerTransition.Instance);
     }
 
-    /// <summary>Registered trigger types, with renames.</summary>
-    public IdentityRegistry<TriggerType> Triggers { get; } = new();
-
-    /// <summary>Rules editors run on every change: valid state-flow edges and known triggers.</summary>
+    /// <summary>
+    /// Rules editors run on every change: valid state-flow edges, and triggers registered as signals in the
+    /// document's type registry.
+    /// </summary>
     public IReadOnlyList<IGraphRule> Rules { get; }
 
     /// <summary>Marks a node type as the entry of a state machine.</summary>
@@ -122,7 +122,7 @@ public static class StateDiagnosticIds
 /// Rejects state-flow edges between roles that cannot follow each other (only entry → state, state → transition and
 /// transition → state are valid) and transitions naming unregistered triggers.
 /// </summary>
-/// <param name="semantics">Holds the bound roles and triggers.</param>
+/// <param name="semantics">Holds the bound roles.</param>
 sealed class StateStructureRule(StateSemantics semantics) : IGraphRule
 {
     public void Validate(GraphValidationContext context)
@@ -140,16 +140,16 @@ sealed class StateStructureRule(StateSemantics semantics) : IGraphRule
         }
         foreach (var node in context.AffectedNodes)
         {
-            if (UnknownTrigger(node) is { } trigger)
+            if (UnknownTrigger(graph.Registry.Signals, node) is { } trigger)
             {
                 context.Report(new(StateDiagnosticIds.UnknownTrigger, DiagnosticSeverity.Error, node.Id,
-                    $"Trigger {trigger} is not registered."));
+                    $"Trigger {trigger} is not a registered signal."));
             }
         }
     }
 
-    StableId? UnknownTrigger(GraphNode node) =>
-        node.Payload is TransitionPayload { Trigger: { } trigger } && !semantics.Triggers.TryResolve(trigger, out _)
+    static StableId? UnknownTrigger(IdentityRegistry<SignalType> signals, GraphNode node) =>
+        node.Payload is TransitionPayload { Trigger: { } trigger } && !signals.TryResolve(trigger, out _)
             ? trigger
             : null;
 

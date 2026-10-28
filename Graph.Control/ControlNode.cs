@@ -15,6 +15,9 @@ public interface IControlNode
     /// <summary>Bytes of per-instance memory each node of this type keeps between runs.</summary>
     int MemorySize => 0;
 
+    /// <summary>Evaluation-context features the node reads; backends refuse to run without them.</summary>
+    IReadOnlyList<Type> RequiredFeatures => [];
+
     /// <summary>Does the node's work and chooses which exec outputs continue; none ends the branch.</summary>
     void Execute(ref ControlContext context);
 }
@@ -26,13 +29,21 @@ public delegate void ControlExecutor(ref ControlContext context);
 /// <param name="execute">Does the work and chooses continuations.</param>
 /// <param name="isTickEntry">Whether ticks start at this node.</param>
 /// <param name="memorySize">Bytes of per-instance memory.</param>
-public sealed class ControlNode(ControlExecutor execute, bool isTickEntry = false, int memorySize = 0) : IControlNode
+/// <param name="requires">Context features the node reads.</param>
+public sealed class ControlNode(
+    ControlExecutor execute,
+    bool isTickEntry = false,
+    int memorySize = 0,
+    params Type[] requires) : IControlNode
 {
     /// <inheritdoc />
     public bool IsTickEntry { get; } = isTickEntry;
 
     /// <inheritdoc />
     public int MemorySize { get; } = memorySize;
+
+    /// <inheritdoc />
+    public IReadOnlyList<Type> RequiredFeatures { get; } = requires;
 
     /// <inheritdoc />
     public void Execute(ref ControlContext context) => execute(ref context);

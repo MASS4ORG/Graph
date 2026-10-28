@@ -109,7 +109,26 @@ static class DataflowCompiler
             }
             MarkStatic(nodes, sources);
             var slots = new ProgramSlots(layout.Add<int>(), layout.AddArray<int>(nodes.Length), layout.Add<byte>());
-            return new(document, nodes, ports, [.. sources], slots, variables);
+            var features = nodes.SelectMany(static node => node.Behavior?.RequiredFeatures ?? []).Distinct().ToArray();
+            return new(document, nodes, ports, [.. sources], slots, variables, Outputs(), features);
+        }
+
+        /// <summary>Declared outputs and, for those with a connected output node, the port that defines them.</summary>
+        Dictionary<ElementId, int> Outputs()
+        {
+            var outputs = document.Variables
+                .Where(variable => variable.Scope == VariableScope.Output && variables.ContainsKey(variable.Id))
+                .ToDictionary(static variable => variable.Id, static _ => -1);
+            for (var i = 0; i < graphNodes.Length; i++)
+            {
+                if (graphNodes[i].TypeId == DataflowNodes.Output.Id &&
+                    DataflowNodes.TryGetVariable(document, graphNodes[i], out var variable) &&
+                    outputs.ContainsKey(variable.Id) && ports[firstPorts[i]].SourceNode >= 0)
+                {
+                    outputs[variable.Id] = firstPorts[i];
+                }
+            }
+            return outputs;
         }
 
         /// <summary>Variable reads alias their variable's slot; other outputs get slots of their own.</summary>

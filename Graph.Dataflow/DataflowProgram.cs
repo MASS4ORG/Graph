@@ -18,6 +18,7 @@ public sealed partial class DataflowProgram : IDataPlane
     readonly InstanceArraySlot<int> epochs;
     readonly InstanceSlot<byte> initialized;
     readonly Dictionary<ElementId, VariableSlot> variables;
+    readonly Dictionary<ElementId, int> outputs;
 
     internal DataflowProgram(
         GraphDocument document,
@@ -25,13 +26,18 @@ public sealed partial class DataflowProgram : IDataPlane
         PortEntry[] ports,
         int[] sources,
         ProgramSlots slots,
-        Dictionary<ElementId, VariableSlot> variables)
+        Dictionary<ElementId, VariableSlot> variables,
+        Dictionary<ElementId, int> outputs,
+        Type[] requiredFeatures)
     {
         Document = document;
         this.nodes = nodes;
         this.ports = ports;
         this.sources = sources;
         this.variables = variables;
+        this.outputs = outputs;
+        RequiredFeatures = requiredFeatures;
+        Outputs = [.. outputs.Keys.Order()];
         epochCounter = slots.EpochCounter;
         epochs = slots.Epochs;
         initialized = slots.Initialized;
@@ -49,6 +55,12 @@ public sealed partial class DataflowProgram : IDataPlane
 
     /// <summary>The document this program was compiled from.</summary>
     public GraphDocument Document { get; }
+
+    /// <summary>Context features the document's nodes read.</summary>
+    public IReadOnlyList<Type> RequiredFeatures { get; }
+
+    /// <summary>Output-scope variables the document declares as results, in identity order.</summary>
+    public IReadOnlyList<ElementId> Outputs { get; }
 
     /// <inheritdoc />
     public bool TryResolve(ElementId portId, out int port) =>

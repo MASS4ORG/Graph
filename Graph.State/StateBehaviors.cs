@@ -3,21 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace MASS4.Graph.State;
 
-/// <summary>A typed event that fires transitions; registered identities replace magic event strings.</summary>
-/// <param name="id">Persistent identity.</param>
-/// <param name="displayName">Human-readable name.</param>
-public sealed class TriggerType(StableId id, string displayName) : ITypeIdentity
-{
-    /// <inheritdoc />
-    public StableId Id { get; } = id;
-
-    /// <inheritdoc />
-    public string DisplayName { get; } = displayName;
-}
-
 /// <summary>
-/// Evaluation-context feature carrying the time step of the current evaluation; backends that tick state machines
-/// read it, so hosts set it once per frame.
+/// Evaluation-context feature carrying the time step of the current evaluation. Backends that tick state machines
+/// require it, so hosts set it once per frame; a missing time step fails instead of freezing timers.
 /// </summary>
 public sealed class StateTime
 {
@@ -37,6 +25,9 @@ public interface IStateNode
 {
     /// <summary>Bytes of per-instance memory each state of this type keeps.</summary>
     int MemorySize => 0;
+
+    /// <summary>Evaluation-context features the state reads; backends refuse to run without them.</summary>
+    IReadOnlyList<Type> RequiredFeatures => [];
 
     /// <summary>Runs when the machine enters the state.</summary>
     void OnEnter(StateContext context)
@@ -59,6 +50,9 @@ public interface ITransitionNode
 {
     /// <summary>Order among the transitions of one state; higher runs first. Defaults to the payload.</summary>
     int Priority(GraphNode node) => node.Payload is TransitionPayload payload ? payload.Priority : 0;
+
+    /// <summary>Evaluation-context features the transition reads; backends refuse to run without them.</summary>
+    IReadOnlyList<Type> RequiredFeatures => [];
 
     /// <summary>Whether the machine should take this transition now.</summary>
     bool ShouldFire(TransitionContext context);

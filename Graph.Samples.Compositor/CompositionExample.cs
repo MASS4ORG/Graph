@@ -1,16 +1,16 @@
 using MASS4.Graph.Dataflow;
-using MASS4.Graph.Interpreter;
 
 namespace MASS4.Graph.Samples.Compositor;
 
 /// <summary>
-/// An example composition: a pulse fades in over a scrolling ramp, out = over(pulse, ramp, envelope(time)). Every
-/// value depends on the timeline, so the composition is reproducible for a given time.
+/// An example composition: a pulse fades in over a scrolling ramp, frame = over(pulse, ramp, envelope(time)). Every
+/// value depends on the timeline, so the composition is reproducible for a given time; the frame is the declared
+/// output.
 /// </summary>
 /// <param name="Document">The composition.</param>
-/// <param name="Output">The frame input of the output node; renderers read it.</param>
+/// <param name="Output">The declared frame output; renderers read it.</param>
 /// <param name="Blend">The blend node.</param>
-public sealed record CompositionExample(GraphDocument Document, ElementId Output, ElementId Blend)
+public sealed record CompositionExample(GraphDocument Document, GraphVariable Output, ElementId Blend)
 {
     /// <summary>Ramp scroll speed in frame widths per second.</summary>
     public const double Speed = 0.25;
@@ -26,22 +26,23 @@ public sealed record CompositionExample(GraphDocument Document, ElementId Output
     public static CompositionExample Build(DataflowSemantics data, GraphTypeRegistry registry)
     {
         var editor = new GraphEditor(new GraphDocument(registry), data.Conversions, data.Rules);
+        var frame = new GraphVariable(ElementId.New(), "frame", CompositorLibrary.FrameType.Id, VariableScope.Output);
         var time = new AddNodeCommand(CompositorLibrary.Time);
         var ramp = new AddNodeCommand(CompositorLibrary.Ramp, new RampPayload(Speed));
         var pulse = new AddNodeCommand(CompositorLibrary.Pulse, new PulsePayload(Frequency));
         var envelope = new AddNodeCommand(CompositorLibrary.Envelope, new EnvelopePayload(FadeIn));
         var blend = new AddNodeCommand(CompositorLibrary.Over);
-        var output = new AddNodeCommand(CompositorLibrary.Output);
+        var output = new AddNodeCommand(DataflowNodes.Output, new VariableReference(frame.Id));
         Require(editor.Execute(new CompositeCommand("Fade a pulse over a ramp",
         [
-            time, ramp, pulse, envelope, blend, output,
+            new SetVariableCommand(frame), time, ramp, pulse, envelope, blend, output,
             Wire(time, envelope, CompositorLibrary.AKey),
             Wire(pulse, blend, CompositorLibrary.AKey),
             Wire(ramp, blend, CompositorLibrary.BKey),
             Wire(envelope, blend, CompositorLibrary.MixKey),
-            Wire(blend, output, CompositorLibrary.AKey),
+            new ConnectCommand(blend.PortId(CompositorLibrary.OutKey), output.PortId(DataflowNodes.ResultKey)),
         ])));
-        return new(editor.Document, output.PortId(CompositorLibrary.AKey), blend.NodeId);
+        return new(editor.Document, frame, blend.NodeId);
     }
 
     /// <summary>The luminance the composition produces at a pixel column and time.</summary>
@@ -62,15 +63,15 @@ public sealed record CompositionExample(GraphDocument Document, ElementId Output
 }
 
 /// <summary>
-/// Renders a composition frame by frame. Node evaluation is synchronous; this host loop is asynchronous, reporting
-/// progress after every frame and honoring cancellation between frames.
+/// Renders a composition frame by frame with any backend. Node evaluation is synchronous; this host loop is
+/// asynchronous, reporting progress after every frame and honoring cancellation between frames.
 /// </summary>
 public static class CompositionRenderer
 {
     /// <summary>Renders <paramref name="frames"/> frames at <paramref name="framesPerSecond"/>.</summary>
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public static async Task<IReadOnlyList<RenderedFrame>> RenderAsync(
-        InterpretedGraph graph,
+        ICompiledGraph graph,
         InstanceBuffer instances,
         InstanceHandle instance,
         ElementId output,
@@ -84,14 +85,13 @@ public static class CompositionRenderer
         var context = new EvaluationContext { Cancellation = cancellation, Progress = progress }
             .Set(timeline)
             .Set(settings);
-        graph.Data.TryResolve(output, out var port);
         List<RenderedFrame> rendered = [];
         for (var i = 0; i < frames; i++)
         {
             cancellation.ThrowIfCancellationRequested();
             timeline.Seconds = i / framesPerSecond;
             await graph.EvaluateAsync(context, instances, instance);
-            var frame = graph.Data.ReadReference<Frame>(context, instances, instance, port)!;
+            var frame = graph.ReadOutputReference<Frame>(context, instances, instance, output)!;
             rendered.Add(new(timeline.Seconds, frame.Mean, frame.Checksum()));
             context.Progress?.Report(new((i + 1) / (double)frames, $"frame {i + 1} of {frames}"));
             await Task.Yield();

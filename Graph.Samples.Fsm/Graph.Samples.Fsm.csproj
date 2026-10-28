@@ -10,7 +10,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Graph.Interpreter\Graph.Interpreter.csproj" />
+        <ProjectReference Include="..\Graph.Dataflow\Graph.Dataflow.csproj" />
+        <ProjectReference Include="..\Graph.State\Graph.State.csproj" />
     </ItemGroup>
 
 </Project>

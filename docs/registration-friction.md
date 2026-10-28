@@ -122,6 +122,13 @@ The renderer must take an `InterpretedGraph` to read the output frame through `D
 
 Requirement (core): typed reads of declared outputs on `ICompiledGraph`, together with R8.
 
+## Status after the core batch
+
+- Resolved in the core: R6 (`NodeType.DefaultPayload`), R8 and R19 (output-scope variables defined by `DataflowNodes.Output`, typed `ReadOutput`/`ReadOutputReference` on `ICompiledGraph`; the samples' renderers now take any backend), R11's split registry (triggers are `SignalType`s in `GraphTypeRegistry.Signals`), R14's boxing (typed `ICompiledGraph.SetVariable<T>`).
+- Resolved in the harness: R15 (`DifferentialOptions.Comparers`; `Frame` no longer overrides equality), R17 (behaviors declare `RequiredFeatures`, backends call `EvaluationContext.Require`, nodes use `Get<T>`; the samples' silent fallbacks are gone and missing features throw `MissingFeatureException`).
+- Pending an owner decision because it changes the serialized format: R9 (trigger and priority as semantic node metadata instead of payload content).
+- Still generator scope: R1–R5, R7, R10, R11's rename emission, R12, R13, R14's typed handles, R16, R18.
+
 ## Summary for #11
 
 - Generator scope: R1–R7, R10–R14, R16–R18.

@@ -1,9 +1,7 @@
 namespace MASS4.Graph.Samples.Compositor;
 
-/// <summary>
-/// A greyscale video frame. Frames compare by content, so different backends producing the same image are equal.
-/// </summary>
-public sealed class Frame : IEquatable<Frame>
+/// <summary>A greyscale video frame; nodes reuse frames between evaluations, so frames compare by identity.</summary>
+public sealed class Frame
 {
     /// <summary>Creates a black frame.</summary>
     public Frame(int width, int height)
@@ -39,16 +37,23 @@ public sealed class Frame : IEquatable<Frame>
         }
         return hash;
     }
+}
+
+/// <summary>Compares frames by size and pixels, for differential testing and tools.</summary>
+public sealed class FrameComparer : IEqualityComparer<Frame>, System.Collections.IEqualityComparer
+{
+    /// <inheritdoc />
+    public bool Equals(Frame? x, Frame? y) =>
+        ReferenceEquals(x, y) ||
+        (x is not null && y is not null && x.Width == y.Width && x.Height == y.Height &&
+         x.Luma.AsSpan().SequenceEqual(y.Luma));
 
     /// <inheritdoc />
-    public bool Equals(Frame? other) =>
-        other is not null && other.Width == Width && other.Height == Height && other.Luma.AsSpan().SequenceEqual(Luma);
+    public int GetHashCode(Frame frame) => (int)frame.Checksum();
 
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => Equals(obj as Frame);
+    bool System.Collections.IEqualityComparer.Equals(object? x, object? y) => Equals(x as Frame, y as Frame);
 
-    /// <inheritdoc />
-    public override int GetHashCode() => (int)Checksum();
+    int System.Collections.IEqualityComparer.GetHashCode(object obj) => GetHashCode((Frame)obj);
 }
 
 /// <summary>Evaluation-context feature: the time on the timeline being rendered.</summary>

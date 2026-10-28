@@ -30,13 +30,46 @@ public sealed class EvaluationContext
         return this;
     }
 
-    /// <summary>Finds a typed feature.</summary>
+    /// <summary>Finds a typed feature, for features that are genuinely optional.</summary>
     public bool TryGet<T>([NotNullWhen(true)] out T? feature) where T : class
     {
         var found = features.TryGetValue(typeof(T), out var value);
         feature = found ? (T)value! : null;
         return found;
     }
+
+    /// <summary>Returns a feature a node or backend cannot work without.</summary>
+    /// <exception cref="MissingFeatureException">The host did not provide it.</exception>
+    public T Get<T>() where T : class =>
+        features.TryGetValue(typeof(T), out var value) ? (T)value : throw new MissingFeatureException(typeof(T));
+
+    /// <summary>Whether a feature of exactly this type was provided.</summary>
+    public bool Contains(Type feature) => features.ContainsKey(feature);
+
+    /// <summary>Checks that every required feature was provided, before anything evaluates.</summary>
+    /// <exception cref="MissingFeatureException">A feature is missing.</exception>
+    public void Require(IReadOnlyList<Type> required)
+    {
+        for (var i = 0; i < required.Count; i++)
+        {
+            if (!features.ContainsKey(required[i]))
+            {
+                throw new MissingFeatureException(required[i]);
+            }
+        }
+    }
+}
+
+/// <summary>
+/// An evaluation needed a context feature the host did not provide. Evaluation fails instead of falling back to a
+/// default, which would produce plausible but wrong results.
+/// </summary>
+/// <param name="feature">The missing feature type.</param>
+public sealed class MissingFeatureException(Type feature)
+    : InvalidOperationException($"The evaluation context lacks the required feature {feature.Name}.")
+{
+    /// <summary>The missing feature type.</summary>
+    public Type Feature { get; } = feature;
 }
 
 /// <summary>Input of a backend: a document and the identities it was authored against.</summary>
@@ -48,7 +81,7 @@ public sealed record GraphSource(GraphDocument Document)
 }
 
 /// <summary>One observable value of an instance, keyed by the element it belongs to.</summary>
-/// <param name="Element">A data port, or the element state is reported under (such as a state machine entry).</param>
+/// <param name="Element">An output variable, a data port, or the element state is reported under.</param>
 /// <param name="Value">The value; unmanaged values are boxed.</param>
 public readonly record struct GraphObservation(ElementId Element, object? Value);
 
@@ -66,20 +99,51 @@ public interface ICompiledGraph
     /// <summary>Per-instance record layout this artifact needs.</summary>
     InstanceLayout InstanceLayout { get; }
 
+    /// <summary>
+    /// Context features the graph cannot evaluate without. <see cref="Initialize"/> and <see cref="EvaluateAsync"/>
+    /// throw <see cref="MissingFeatureException"/> when one is absent instead of substituting a default.
+    /// </summary>
+    IReadOnlyList<Type> RequiredFeatures { get; }
+
+    /// <summary>Output-scope blackboard variables the graph declares as its results.</summary>
+    IReadOnlyList<ElementId> Outputs { get; }
+
     /// <summary>Prepares a freshly allocated instance, for example by entering the initial state.</summary>
+    /// <exception cref="MissingFeatureException">A required feature is missing.</exception>
     void Initialize(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance);
 
     /// <summary>
     /// Evaluates one instance. The shape is asynchronous so long-running backends can await; synchronous backends
     /// complete immediately without allocating.
     /// </summary>
+    /// <exception cref="MissingFeatureException">A required feature is missing.</exception>
     ValueTask EvaluateAsync(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance);
+
+    /// <summary>Returns the current value of a declared output, evaluating whatever it depends on.</summary>
+    /// <exception cref="KeyNotFoundException">The graph declares no such output.</exception>
+    /// <exception cref="InvalidOperationException">The output is not of type <typeparamref name="T"/>.</exception>
+    T ReadOutput<T>(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance, ElementId output)
+        where T : unmanaged;
+
+    /// <summary>Returns the current object value of a declared output, evaluating whatever it depends on.</summary>
+    /// <exception cref="KeyNotFoundException">The graph declares no such output.</exception>
+    /// <exception cref="InvalidOperationException">The output is not of type <typeparamref name="T"/>.</exception>
+    T? ReadOutputReference<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        ElementId output)
+        where T : class;
 
     /// <summary>Raises a typed signal, such as a state trigger, for the next evaluation; false when unknown.</summary>
     bool Raise(InstanceBuffer instances, InstanceHandle instance, StableId signal);
 
     /// <summary>Sets a blackboard variable of an instance; false when unknown or of another type.</summary>
     bool SetVariable(InstanceBuffer instances, InstanceHandle instance, ElementId variable, object? value);
+
+    /// <summary>Sets an unmanaged blackboard variable without boxing; false when unknown or of another type.</summary>
+    bool SetVariable<T>(InstanceBuffer instances, InstanceHandle instance, ElementId variable, T value)
+        where T : unmanaged;
 
     /// <summary>
     /// Adds every observable value of an instance (data outputs, current states) to <paramref name="observations"/>,

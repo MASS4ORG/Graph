@@ -74,8 +74,8 @@ static class Domain
     public static readonly NodeType Walk = Type(301, "Walk", StateNodes.Enter(), StateNodes.Exit(), Out(Number));
     public static readonly NodeType Guarded = StateNodes.CreateGuardedTransition(Id(302), "Guarded", Bool.Id);
 
-    public static readonly TriggerType Go = new(Id(401), "Go");
-    public static readonly TriggerType Stop = new(Id(402), "Stop");
+    public static readonly SignalType Go = new(Id(401), "Go");
+    public static readonly SignalType Stop = new(Id(402), "Stop");
 
     public static StableId Id(int value) => new(new Guid($"00000000-0000-4000-8000-{value:D12}"));
 
@@ -98,6 +98,8 @@ static class Domain
         {
             registry.NodeTypes.Register(node);
         }
+        registry.Signals.Register(Go);
+        registry.Signals.Register(Stop);
         return registry;
     }
 
@@ -113,7 +115,7 @@ static class Domain
         .AddNode(GreaterThan.Id, new DataflowNode(static c => c.Write(2, c.Read<double>(0) > c.Read<double>(1))))
         .AddNode(Not.Id, new DataflowNode(static c => c.Write(1, !c.Read<bool>(0))))
         .AddNode(Speed.Id, new DataflowNode(static c =>
-            c.Write(0, c.Evaluation.TryGet<Locomotion>(out var locomotion) ? locomotion.Speed : 0), isVolatile: true))
+            c.Write(0, c.Evaluation.Get<Locomotion>().Speed), isVolatile: true, typeof(Locomotion)))
         .AddNode(Relay.Id, new DataflowNode(static c => c.Copy(0, 1)))
         .AddNode(IntConstant.Id, new DataflowNode(static c => c.Write(0, ((IntPayload)c.Payload!).Value)))
         .AddNode(TextLength.Id, new DataflowNode(static c =>
@@ -138,23 +140,12 @@ static class Domain
             c.Continue(1);
         }, memorySize: sizeof(int)))
         .AddNode(Log.Id, new ControlNode(static (ref c) =>
-        {
-            if (c.Evaluation.TryGet<Journal>(out var journal))
-            {
-                journal.Entries.Add(((LogPayload)c.Payload!).Label);
-            }
-        }))
+            c.Evaluation.Get<Journal>().Entries.Add(((LogPayload)c.Payload!).Label), requires: typeof(Journal)))
         .AddNode(Forever.Id, new ControlNode(static (ref c) => c.Continue(1)));
 
-    public static StateSemantics CreateState()
-    {
-        var semantics = new StateSemantics()
-            .AddState(Walk.Id, new WalkState())
-            .AddTransition(Guarded.Id, GuardedTransition.Instance);
-        semantics.Triggers.Register(Go);
-        semantics.Triggers.Register(Stop);
-        return semantics;
-    }
+    public static StateSemantics CreateState() => new StateSemantics()
+        .AddState(Walk.Id, new WalkState())
+        .AddTransition(Guarded.Id, GuardedTransition.Instance);
 
     public static GraphEditor CreateEditor(DataflowSemantics data, params IEnumerable<IGraphRule>[] rules) =>
         new(new(CreateRegistry()), data.Conversions, [.. data.Rules, .. rules.SelectMany(static set => set)]);

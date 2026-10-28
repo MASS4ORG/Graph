@@ -29,7 +29,7 @@ static class StateCompiler
             return null;
         }
         var entry = nodes.First(node => semantics.RoleOf(node) == StateRole.Entry).Id;
-        return Build(semantics, stateNodes, links, (initial, entry), layout, data);
+        return Build(semantics, document.Registry.Signals, stateNodes, links, (initial, entry), layout, data);
     }
 
     /// <summary>Resolves the source and target state of every transition, reporting unjoined ones.</summary>
@@ -57,13 +57,14 @@ static class StateCompiler
 
     static StateMachineProgram Build(
         StateSemantics semantics,
+        IdentityRegistry<SignalType> signals,
         GraphNode[] stateNodes,
         List<Link> links,
         (int State, ElementId Entry) initial,
         InstanceLayoutBuilder layout,
         IDataPlane? data)
     {
-        var triggers = semantics.Triggers.Entries.Select(static trigger => trigger.Id).Order()
+        var triggers = signals.Entries.Select(static signal => signal.Id).Order()
             .Select(static (id, index) => (id, index)).ToDictionary();
         List<int> dataPorts = [];
         var states = new StateEntry[stateNodes.Length];
@@ -77,23 +78,25 @@ static class StateCompiler
             var outgoing = links.Where(link => link.From == s)
                 .OrderByDescending(link => semantics.TransitionBehavior(link.Node).Priority(link.Node))
                 .ThenBy(static link => link.Node.Id);
-            transitions.AddRange(outgoing.Select(link => Transition(semantics, link, triggers, data, dataPorts)));
+            transitions.AddRange(outgoing.Select(link =>
+                Transition(semantics, signals, link, triggers, data, dataPorts)));
             states[s] = new(node, behavior, AddPorts(node, data, dataPorts), memory, behavior.MemorySize,
                 firstTransition, transitions.Count - firstTransition);
         }
-        return new(semantics, states, [.. transitions], [.. dataPorts], initial.State, triggers, layout, data,
+        return new(signals, states, [.. transitions], [.. dataPorts], initial.State, triggers, layout, data,
             initial.Entry);
     }
 
     static TransitionEntry Transition(
         StateSemantics semantics,
+        IdentityRegistry<SignalType> signals,
         Link link,
         Dictionary<StableId, int> triggers,
         IDataPlane? data,
         List<int> dataPorts)
     {
         var trigger = link.Node.Payload is TransitionPayload { Trigger: { } id }
-            ? triggers[semantics.Triggers.Canonicalize(id)]
+            ? triggers[signals.Canonicalize(id)]
             : -1;
         var ports = AddPorts(link.Node, data, dataPorts);
         return new(link.Node, semantics.TransitionBehavior(link.Node), ports, link.To, trigger);

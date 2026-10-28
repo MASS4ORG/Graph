@@ -41,19 +41,18 @@ public static class ShaderLibrary
     /// <summary>Interpolation factor of the lerp node.</summary>
     public static StableId TKey { get; } = Id(0x103);
 
-    /// <summary>Albedo input of the material output.</summary>
-    public static StableId AlbedoKey { get; } = Id(0x104);
-
-    /// <summary>A scalar constant; payload <see cref="ScalarPayload"/>.</summary>
+    /// <summary>A scalar constant; payload <see cref="ScalarPayload"/>, zero by default.</summary>
     public static NodeType ScalarConstant { get; } = new(Id(0x201), "Scalar", [Out(Scalar)])
     {
         PayloadSerializer = ScalarPayloadSerializer.Instance,
+        DefaultPayload = static () => new ScalarPayload(0),
     };
 
-    /// <summary>A colour constant; payload <see cref="ColorPayload"/>.</summary>
+    /// <summary>A colour constant; payload <see cref="ColorPayload"/>, opaque black by default.</summary>
     public static NodeType ColorConstant { get; } = new(Id(0x202), "Color", [Out(ColorType)])
     {
         PayloadSerializer = ColorPayloadSerializer.Instance,
+        DefaultPayload = static () => new ColorPayload(new(0, 0, 0, 1)),
     };
 
     /// <summary>The texture coordinates of the fragment being shaded.</summary>
@@ -79,11 +78,10 @@ public static class ShaderLibrary
     public static NodeType ScalarToColor { get; } = new(Id(0x208), "Scalar to color",
         [In(AKey, "scalar", Scalar), Out(ColorType)]);
 
-    /// <summary>The material output; renderers read its albedo input.</summary>
-    public static NodeType MaterialOutput { get; } = new(Id(0x209), "Material output",
-        [In(AlbedoKey, "albedo", ColorType)]);
-
-    /// <summary>Registers the port and node types, plus the built-in dataflow types they rely on.</summary>
+    /// <summary>
+    /// Registers the port and node types, plus the built-in dataflow types they rely on. Materials declare their
+    /// results as output-scope variables defined by <see cref="DataflowNodes.Output"/> nodes.
+    /// </summary>
     public static void Register(GraphTypeRegistry registry)
     {
         foreach (var type in new[] { Scalar, ColorType, UvType, TextureType })
@@ -91,10 +89,7 @@ public static class ShaderLibrary
             registry.PortTypes.Register(type);
         }
         NodeType[] nodes =
-        [
-            ScalarConstant, ColorConstant, TexCoord, SampleTexture, Multiply, ScaleColor, Lerp, ScalarToColor,
-            MaterialOutput,
-        ];
+            [ScalarConstant, ColorConstant, TexCoord, SampleTexture, Multiply, ScaleColor, Lerp, ScalarToColor];
         foreach (var node in nodes)
         {
             registry.NodeTypes.Register(node);
@@ -112,8 +107,8 @@ public static class ShaderLibrary
     static DataflowSemantics AddSources(DataflowSemantics semantics) => semantics
         .AddNode(ScalarConstant.Id, new DataflowNode(static c => c.Write(0, ((ScalarPayload)c.Payload!).Value)))
         .AddNode(ColorConstant.Id, new DataflowNode(static c => c.Write(0, ((ColorPayload)c.Payload!).Value)))
-        .AddNode(TexCoord.Id, new DataflowNode(static c =>
-            c.Write(0, c.Evaluation.TryGet<Fragment>(out var fragment) ? fragment.Uv : default), isVolatile: true));
+        .AddNode(TexCoord.Id, new DataflowNode(static c => c.Write(0, c.Evaluation.Get<Fragment>().Uv),
+            isVolatile: true, typeof(Fragment)));
 
     static DataflowSemantics AddOperators(DataflowSemantics semantics) => semantics
         .AddNode(SampleTexture.Id, new DataflowNode(static c =>

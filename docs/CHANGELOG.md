@@ -19,4 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shader/material contract sample with hand registration and the registration friction log #21
 - FSM contract sample: one guard asset across 1000 instances with typed triggers, a self-transition and timed transitions #22
 - Video compositor contract sample: frame values, timeline feature and asynchronous rendering, with no engine references #23
+- Declared graph outputs (output-scope variables defined by `DataflowNodes.Output`) with typed reads on `ICompiledGraph` #10
+- Signals in `GraphTypeRegistry` replace the State trigger registry, so trigger renames live with every other rename #15
+- `NodeType.DefaultPayload` for newly added nodes #8
+- Required context features: `EvaluationContext.Get`/`Require`, `MissingFeatureException`, and `RequiredFeatures` on behaviors, programs and `ICompiledGraph`; missing features fail instead of defaulting #18
+- Typed `ICompiledGraph.SetVariable<T>` and per-type comparers in the differential harness #18
 - `IDataPlane`, instance array and reference slots, and `GraphDocument.GetNode`/`GetPort` so semantics compose in one document #16

@@ -1,7 +1,7 @@
 namespace MASS4.Graph.State;
 
 /// <summary>Payload of transition nodes: an optional typed trigger and a priority among sibling transitions.</summary>
-/// <param name="Trigger">Identity of a registered <see cref="TriggerType"/>; null fires without a trigger.</param>
+/// <param name="Trigger">Identity of a registered <see cref="SignalType"/>; null fires without a trigger.</param>
 /// <param name="Priority">Higher priorities are checked first; ties resolve by node identity.</param>
 public sealed record TransitionPayload(StableId? Trigger = null, int Priority = 0);
 
@@ -43,6 +43,7 @@ public static class StateNodes
     public static NodeType Transition { get; } = new(Id(0x204), "Transition", [From(), To()])
     {
         PayloadSerializer = TransitionPayloadSerializer.Instance,
+        DefaultPayload = static () => new TransitionPayload(),
     };
 
     /// <summary>Declares a state's flow input, which any number of transitions may enter.</summary>
@@ -69,6 +70,7 @@ public static class StateNodes
         new(id, displayName, [From(), To(), PortDeclaration.Input(ConditionKey, "condition", boolTypeId)])
         {
             PayloadSerializer = TransitionPayloadSerializer.Instance,
+            DefaultPayload = static () => new TransitionPayload(),
         };
 
     /// <summary>Registers the state-flow port type and the built-in node types.</summary>

@@ -114,6 +114,58 @@ public class GraphContractTests
     }
 
     [Test]
+    public async Task NodeTypesSupplyDefaultPayloadsToNewNodesOnly()
+    {
+        var withDefault = new NodeType(Id(610), "Defaulted", [])
+        {
+            DefaultPayload = static () => new ConstantPayload(7),
+        };
+
+        var defaulted = new AddNodeCommand(withDefault);
+        var explicitPayload = new AddNodeCommand(withDefault, new ConstantPayload(1));
+        var plain = new AddNodeCommand(Add);
+
+        await Assert.That(defaulted.Payload).IsEqualTo(new ConstantPayload(7));
+        await Assert.That(explicitPayload.Payload).IsEqualTo(new ConstantPayload(1));
+        await Assert.That(plain.Payload).IsNull();
+    }
+
+    [Test]
+    public async Task RequiredFeaturesFailLoudlyWhenMissing()
+    {
+        var context = new EvaluationContext().Set(new Clock(1));
+        Type[] required = [typeof(Clock), typeof(SynchronousProgress)];
+        MissingFeatureException? missing = null;
+
+        try
+        {
+            context.Require(required);
+        }
+        catch (MissingFeatureException exception)
+        {
+            missing = exception;
+        }
+
+        await Assert.That(context.Get<Clock>().Seconds).IsEqualTo(1);
+        await Assert.That(context.Contains(typeof(Clock))).IsTrue();
+        await Assert.That(missing!.Feature).IsEqualTo(typeof(SynchronousProgress));
+        await Assert.That(missing.Message).Contains(nameof(SynchronousProgress));
+        await Assert.That(() => context.Get<SynchronousProgress>()).ThrowsExactly<MissingFeatureException>();
+    }
+
+    [Test]
+    public async Task SignalsAreRenameAwareRegistryIdentities()
+    {
+        var registry = new GraphTypeRegistry();
+        var jump = new SignalType(Id(620), "Jump");
+        registry.Signals.Register(jump);
+        registry.Signals.AddRename(Id(619), jump.Id);
+
+        await Assert.That(registry.Signals.Resolve(Id(619))).IsSameReferenceAs(jump);
+        await Assert.That(jump.DisplayName).IsEqualTo("Jump");
+    }
+
+    [Test]
     public async Task NodeGetPortThrowsForUnknownKey()
     {
         var editor = CreateEditor();

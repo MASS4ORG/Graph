@@ -58,10 +58,10 @@ public class StateTests
     public async Task RenamedTriggersStillResolve()
     {
         var state = CreateState();
-        var jump = new TriggerType(Id(410), "Jump");
-        state.Triggers.Register(jump);
-        state.Triggers.AddRename(Id(409), jump.Id);
         var editor = CreateEditor(CreateDataflow(), state.Rules);
+        var jump = new SignalType(Id(410), "Jump");
+        editor.Document.Registry.Signals.Register(jump);
+        editor.Document.Registry.Signals.AddRename(Id(409), jump.Id);
         var entry = editor.AddNode(StateNodes.Entry);
         var ground = editor.AddNode(StateNodes.State);
         var air = editor.AddNode(StateNodes.State);

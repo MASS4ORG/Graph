@@ -12,6 +12,12 @@ public interface IDataflowNode
     /// </summary>
     bool IsVolatile => false;
 
+    /// <summary>
+    /// Evaluation-context features the node reads with <see cref="EvaluationContext.Get{T}"/>; backends refuse to
+    /// evaluate when the host has not provided them.
+    /// </summary>
+    IReadOnlyList<Type> RequiredFeatures => [];
+
     /// <summary>Reads inputs and writes outputs through the context.</summary>
     void Evaluate(DataflowContext context);
 }
@@ -22,10 +28,15 @@ public delegate void DataflowEvaluator(DataflowContext context);
 /// <summary>A node behavior built from a delegate.</summary>
 /// <param name="evaluate">Reads inputs and writes outputs.</param>
 /// <param name="isVolatile">Whether outputs may change with unchanged inputs.</param>
-public sealed class DataflowNode(DataflowEvaluator evaluate, bool isVolatile = false) : IDataflowNode
+/// <param name="requires">Context features the node reads.</param>
+public sealed class DataflowNode(DataflowEvaluator evaluate, bool isVolatile = false, params Type[] requires)
+    : IDataflowNode
 {
     /// <inheritdoc />
     public bool IsVolatile { get; } = isVolatile;
+
+    /// <inheritdoc />
+    public IReadOnlyList<Type> RequiredFeatures { get; } = requires;
 
     /// <inheritdoc />
     public void Evaluate(DataflowContext context) => evaluate(context);

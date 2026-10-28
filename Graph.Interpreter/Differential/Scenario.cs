@@ -56,7 +56,7 @@ public sealed record Divergence(
 /// <param name="Scenario">The scenario name.</param>
 /// <param name="Reference">Name of the reference backend.</param>
 /// <param name="Candidate">Name of the candidate backend.</param>
-/// <param name="Diagnostics">Compile diagnostics of both backends.</param>
+/// <param name="Diagnostics">Compile diagnostics of both backends plus harness findings.</param>
 /// <param name="CompileFailed">Whether either backend failed to compile the document.</param>
 /// <param name="Divergences">Every differing value, in step order.</param>
 public sealed record DifferentialReport(
@@ -67,8 +67,10 @@ public sealed record DifferentialReport(
     bool CompileFailed,
     IReadOnlyList<Divergence> Divergences)
 {
-    /// <summary>Whether both backends compiled and every observation matched.</summary>
-    public bool Equivalent => !CompileFailed && Divergences.Count == 0;
+    /// <summary>Whether both backends compiled, agree on their contracts and every observation matched.</summary>
+    public bool Equivalent =>
+        !CompileFailed && Divergences.Count == 0 &&
+        Diagnostics.All(static diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
 
 /// <summary>How the harness compares values.</summary>
@@ -76,4 +78,18 @@ public sealed record DifferentialOptions
 {
     /// <summary>Largest absolute difference tolerated between floating-point values; exact by default.</summary>
     public double Tolerance { get; init; }
+
+    /// <summary>
+    /// Comparers for object values keyed by their runtime type, such as frames or textures, so backends that produce
+    /// distinct but equal objects compare equal without the domain type overriding <see cref="object.Equals(object)"/>.
+    /// </summary>
+    public IReadOnlyDictionary<Type, System.Collections.IEqualityComparer> Comparers { get; init; } =
+        new Dictionary<Type, System.Collections.IEqualityComparer>();
+}
+
+/// <summary>Diagnostic codes reported by the differential harness.</summary>
+public static class DifferentialDiagnosticIds
+{
+    /// <summary>The backends declare different required context features.</summary>
+    public const string FeaturesDiffer = "MG4001";
 }

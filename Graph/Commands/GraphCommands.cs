@@ -62,12 +62,12 @@ public sealed class AddNodeCommand : IGraphCommand
 
     /// <summary>Prepares the node.</summary>
     /// <param name="type">The node type; it must be registered in the target document.</param>
-    /// <param name="payload">Initial application data.</param>
+    /// <param name="payload">Initial application data; the type's default payload when null.</param>
     /// <param name="nodeId">Identity to use; a new one is generated when empty.</param>
     public AddNodeCommand(NodeType type, object? payload = null, ElementId nodeId = default)
     {
         Type = type;
-        Payload = payload;
+        Payload = payload ?? type.DefaultPayload?.Invoke();
         NodeId = nodeId.IsEmpty ? ElementId.New() : nodeId;
         portIds = new ElementId[type.Ports.Count];
         for (var i = 0; i < portIds.Length; i++)

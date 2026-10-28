@@ -7,7 +7,7 @@ namespace MASS4.Graph.State;
 /// </summary>
 public sealed class StateMachineProgram
 {
-    readonly StateSemantics semantics;
+    readonly IdentityRegistry<SignalType> signals;
     readonly StateEntry[] states;
     readonly TransitionEntry[] transitions;
     readonly int[] dataPorts;
@@ -19,7 +19,7 @@ public sealed class StateMachineProgram
     readonly IDataPlane? data;
 
     internal StateMachineProgram(
-        StateSemantics semantics,
+        IdentityRegistry<SignalType> signals,
         StateEntry[] states,
         TransitionEntry[] transitions,
         int[] dataPorts,
@@ -30,7 +30,7 @@ public sealed class StateMachineProgram
         ElementId entryNodeId)
     {
         EntryNodeId = entryNodeId;
-        this.semantics = semantics;
+        this.signals = signals;
         this.states = states;
         this.transitions = transitions;
         this.dataPorts = dataPorts;
@@ -40,10 +40,19 @@ public sealed class StateMachineProgram
         current = layout.Add<int>();
         time = layout.Add<double>();
         raised = layout.AddArray<byte>(triggerIndex.Count);
+        RequiredFeatures =
+        [
+            .. states.SelectMany(static state => state.Behavior.RequiredFeatures)
+                .Concat(transitions.SelectMany(static transition => transition.Behavior.RequiredFeatures))
+                .Distinct(),
+        ];
     }
 
     /// <summary>Number of states.</summary>
     public int StateCount => states.Length;
+
+    /// <summary>Context features the document's states and transitions read.</summary>
+    public IReadOnlyList<Type> RequiredFeatures { get; }
 
     /// <summary>Identity of the entry node; tools report the machine's current state under it.</summary>
     public ElementId EntryNodeId { get; }
@@ -51,7 +60,7 @@ public sealed class StateMachineProgram
     /// <summary>Resolves a trigger, following renames; false for triggers not registered at compile time.</summary>
     public bool TryResolveTrigger(StableId trigger, out TriggerHandle handle)
     {
-        var found = triggerIndex.TryGetValue(semantics.Triggers.Canonicalize(trigger), out var index);
+        var found = triggerIndex.TryGetValue(signals.Canonicalize(trigger), out var index);
         handle = new(index);
         return found;
     }

@@ -44,6 +44,12 @@ public sealed class NodeType : ITypeIdentity
     /// <summary>Serializer for the node payload; null keeps saved payloads opaque.</summary>
     public IValueSerializer? PayloadSerializer { get; init; }
 
+    /// <summary>
+    /// Creates the payload of newly added nodes when the command supplies none, as palettes and generated builders
+    /// do; null leaves the payload empty. Loading never applies it.
+    /// </summary>
+    public Func<object?>? DefaultPayload { get; init; }
+
     /// <summary>Finds a declared port by key.</summary>
     public bool TryGetPort(StableId key, [NotNullWhen(true)] out PortDeclaration? port) =>
         portsByKey.TryGetValue(key, out port);
@@ -73,6 +79,21 @@ public sealed class HostFunction(
     public StableId? ResultType { get; } = resultType;
 }
 
+/// <summary>
+/// A typed event hosts raise and graphs react to, such as a state-machine trigger. Signals are identities like node
+/// and port types, so graphs never match events by string and renames are registry entries.
+/// </summary>
+/// <param name="id">Persistent identity.</param>
+/// <param name="displayName">Human-readable name.</param>
+public sealed class SignalType(StableId id, string displayName) : ITypeIdentity
+{
+    /// <inheritdoc />
+    public StableId Id { get; } = id;
+
+    /// <inheritdoc />
+    public string DisplayName { get; } = displayName;
+}
+
 /// <summary>Upgrades saved nodes of one type from one payload version to the next.</summary>
 /// <param name="NodeTypeId">Current identity of the node type.</param>
 /// <param name="FromVersion">The version this step reads; it produces <c>FromVersion + 1</c>.</param>
@@ -86,7 +107,10 @@ public interface IGraphTypeModule
     void Register(GraphTypeRegistry registry);
 }
 
-/// <summary>All identities a graph document resolves against: node types, port types and host functions.</summary>
+/// <summary>
+/// All identities a graph document resolves against: node types, port types, signals and host functions, each with
+/// its own rename entries.
+/// </summary>
 public sealed class GraphTypeRegistry
 {
     readonly Dictionary<(StableId NodeType, int FromVersion), NodeMigration> migrations = [];
@@ -96,6 +120,9 @@ public sealed class GraphTypeRegistry
 
     /// <summary>Registered port and variable value types.</summary>
     public IdentityRegistry<PortType> PortTypes { get; } = new();
+
+    /// <summary>Registered signals, such as state-machine triggers.</summary>
+    public IdentityRegistry<SignalType> Signals { get; } = new();
 
     /// <summary>Host-provided functions graphs may call.</summary>
     public IdentityRegistry<HostFunction> HostFunctions { get; } = new();

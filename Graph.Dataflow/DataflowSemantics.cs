@@ -20,6 +20,7 @@ public sealed class DataflowSemantics
             new DataflowVariableRule(this),
         ];
         AddNode(DataflowNodes.GetVariable.Id, VariableNode.Instance);
+        AddNode(DataflowNodes.Output.Id, VariableNode.Instance);
     }
 
     /// <summary>Compatibility strategy: exact types, wildcards, registered coercions and conversion nodes.</summary>
@@ -148,4 +149,16 @@ public static class DataflowDiagnosticIds
 
     /// <summary>A variable-read node references a variable whose type dataflow cannot carry.</summary>
     public const string VariableNotData = "MG1007";
+
+    /// <summary>An output node references a variable that is not output-scope.</summary>
+    public const string OutputScope = "MG1008";
+
+    /// <summary>A second output node defines the same output.</summary>
+    public const string OutputRedefined = "MG1009";
+
+    /// <summary>A variable-read node reads an output inside the graph.</summary>
+    public const string OutputRead = "MG1010";
+
+    /// <summary>An output has no connected output node, so it always reads its default.</summary>
+    public const string OutputUndefined = "MG1011";
 }

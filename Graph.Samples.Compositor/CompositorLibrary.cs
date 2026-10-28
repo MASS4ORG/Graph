@@ -63,25 +63,28 @@ public static class CompositorLibrary
     /// <summary>The timeline time.</summary>
     public static NodeType Time { get; } = new(Id(0x201), "Time", [Out(Number)]);
 
-    /// <summary>A scrolling ramp; payload <see cref="RampPayload"/>.</summary>
+    /// <summary>A scrolling ramp; payload <see cref="RampPayload"/>, still by default.</summary>
     public static NodeType Ramp { get; } = new(Id(0x202), "Ramp", [Out(FrameType)])
     {
         PayloadSerializer = new NumberPayloadSerializer<RampPayload>("speed", static v => new(v), static p => p.Speed),
+        DefaultPayload = static () => new RampPayload(0),
     };
 
-    /// <summary>A uniform pulse; payload <see cref="PulsePayload"/>.</summary>
+    /// <summary>A uniform pulse; payload <see cref="PulsePayload"/>, 1 Hz by default.</summary>
     public static NodeType Pulse { get; } = new(Id(0x203), "Pulse", [Out(FrameType)])
     {
         PayloadSerializer =
             new NumberPayloadSerializer<PulsePayload>("frequency", static v => new(v), static p => p.Frequency),
+        DefaultPayload = static () => new PulsePayload(1),
     };
 
-    /// <summary>A rise from 0 to 1 over time; payload <see cref="EnvelopePayload"/>.</summary>
+    /// <summary>A rise from 0 to 1 over time; payload <see cref="EnvelopePayload"/>, one second by default.</summary>
     public static NodeType Envelope { get; } = new(Id(0x204), "Envelope",
         [PortDeclaration.Input(AKey, "time", Number.Id), Out(Number)])
     {
         PayloadSerializer =
             new NumberPayloadSerializer<EnvelopePayload>("duration", static v => new(v), static p => p.Duration),
+        DefaultPayload = static () => new EnvelopePayload(1),
     };
 
     /// <summary>Blends the top frame over the bottom frame.</summary>
@@ -91,37 +94,44 @@ public static class CompositorLibrary
         PortDeclaration.Input(MixKey, "mix", Number.Id), Out(FrameType),
     ]);
 
-    /// <summary>The composition output; renderers read its input.</summary>
-    public static NodeType Output { get; } = new(Id(0x206), "Output",
-        [PortDeclaration.Input(AKey, "frame", FrameType.Id)]);
+    /// <summary>Compares frames by content, for differential tests of backends producing distinct frames.</summary>
+    public static FrameComparer FrameComparer { get; } = new();
 
-    /// <summary>Registers the port and node types.</summary>
+    /// <summary>
+    /// Registers the port and node types. Compositions declare their result as an output-scope frame variable defined
+    /// by a <see cref="DataflowNodes.Output"/> node.
+    /// </summary>
     public static void Register(GraphTypeRegistry registry)
     {
         registry.PortTypes.Register(Number);
         registry.PortTypes.Register(FrameType);
-        foreach (var node in new[] { Time, Ramp, Pulse, Envelope, Over, Output })
+        foreach (var node in new[] { Time, Ramp, Pulse, Envelope, Over })
         {
             registry.NodeTypes.Register(node);
         }
+        DataflowNodes.Register(registry);
     }
 
-    /// <summary>Creates dataflow semantics with the compositor value types and behaviors.</summary>
+    /// <summary>
+    /// Creates dataflow semantics with the compositor value types and behaviors. Time-driven nodes require a
+    /// <see cref="Timeline"/> and frame-producing nodes a <see cref="RenderSettings"/>; neither is defaulted.
+    /// </summary>
     public static DataflowSemantics CreateDataflow() => new DataflowSemantics()
         .AddValueType<double>(Number.Id)
         .AddReferenceType<Frame>(FrameType.Id)
-        .AddNode(Time.Id, new DataflowNode(static c => c.Write(0, Clock(c).Seconds), isVolatile: true))
-        .AddNode(Ramp.Id, new DataflowNode(RenderRamp, isVolatile: true))
-        .AddNode(Pulse.Id, new DataflowNode(RenderPulse, isVolatile: true))
+        .AddNode(Time.Id, new DataflowNode(static c => c.Write(0, c.Evaluation.Get<Timeline>().Seconds),
+            isVolatile: true, typeof(Timeline)))
+        .AddNode(Ramp.Id, new DataflowNode(RenderRamp, isVolatile: true, typeof(Timeline), typeof(RenderSettings)))
+        .AddNode(Pulse.Id, new DataflowNode(RenderPulse, isVolatile: true, typeof(Timeline), typeof(RenderSettings)))
         .AddNode(Envelope.Id, new DataflowNode(static c =>
             c.Write(1, Compositing.Envelope(c.Read<double>(0), ((EnvelopePayload)c.Payload!).Duration))))
-        .AddNode(Over.Id, new DataflowNode(Blend));
+        .AddNode(Over.Id, new DataflowNode(Blend, isVolatile: false, typeof(RenderSettings)));
 
     static void RenderRamp(DataflowContext context)
     {
         var frame = Target(context, 0);
         var speed = ((RampPayload)context.Payload!).Speed;
-        var seconds = Clock(context).Seconds;
+        var seconds = context.Evaluation.Get<Timeline>().Seconds;
         for (var i = 0; i < frame.Luma.Length; i++)
         {
             frame.Luma[i] = Compositing.Ramp(i % frame.Width, frame.Width, speed, seconds);
@@ -132,7 +142,8 @@ public static class CompositorLibrary
     static void RenderPulse(DataflowContext context)
     {
         var frame = Target(context, 0);
-        frame.Luma.AsSpan().Fill(Compositing.Pulse(((PulsePayload)context.Payload!).Frequency, Clock(context).Seconds));
+        var seconds = context.Evaluation.Get<Timeline>().Seconds;
+        frame.Luma.AsSpan().Fill(Compositing.Pulse(((PulsePayload)context.Payload!).Frequency, seconds));
         context.WriteReference(0, frame);
     }
 
@@ -152,18 +163,12 @@ public static class CompositorLibrary
     /// <summary>The node's previous output frame when its size still matches, so evaluations reuse buffers.</summary>
     static Frame Target(DataflowContext context, int output)
     {
-        var size = context.Evaluation.TryGet<RenderSettings>(out var settings) ? settings : DefaultSize;
+        var size = context.Evaluation.Get<RenderSettings>();
         return Frame.Reuse(context.ReadReference<Frame>(output), size.Width, size.Height);
     }
 
     static float Pixel(Frame? frame, int index) =>
         frame is not null && index < frame.Luma.Length ? frame.Luma[index] : 0;
-
-    static Timeline Clock(DataflowContext context) =>
-        context.Evaluation.TryGet<Timeline>(out var timeline) ? timeline : Start;
-
-    static readonly Timeline Start = new();
-    static readonly RenderSettings DefaultSize = new();
 
     static PortDeclaration Out(PortType type) => PortDeclaration.Output(OutKey, "out", type.Id);
 

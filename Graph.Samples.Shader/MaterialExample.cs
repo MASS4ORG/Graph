@@ -1,18 +1,17 @@
 using MASS4.Graph.Dataflow;
-using MASS4.Graph.Interpreter;
 
 namespace MASS4.Graph.Samples.Shader;
 
 /// <summary>
 /// An example material: albedo = lerp(texture × tint × intensity, grey, 0.25). Tint and intensity are exposed
-/// parameters, the texture is an external reference, and the grey comes from a scalar through a conversion node the
-/// editor inserts.
+/// parameters, the texture is an external reference, the grey comes from a scalar through a conversion node the
+/// editor inserts, and the albedo is the material's declared output.
 /// </summary>
 /// <param name="Document">The material graph.</param>
 /// <param name="Tint">Exposed colour parameter.</param>
 /// <param name="Intensity">Exposed scalar parameter.</param>
 /// <param name="AlbedoMap">External texture reference.</param>
-/// <param name="Output">The albedo input of the material output; renderers read it.</param>
+/// <param name="Albedo">The declared albedo output; renderers read it.</param>
 /// <param name="Grey">The inserted conversion node, cached per instance.</param>
 /// <param name="Mix">The lerp node, recomputed per fragment.</param>
 public sealed record MaterialExample(
@@ -20,7 +19,7 @@ public sealed record MaterialExample(
     GraphVariable Tint,
     GraphVariable Intensity,
     GraphVariable AlbedoMap,
-    ElementId Output,
+    GraphVariable Albedo,
     ElementId Grey,
     ElementId Mix)
 {
@@ -35,6 +34,7 @@ public sealed record MaterialExample(
         var tint = Variable(editor, "tint", ShaderLibrary.ColorType, VariableScope.Input, DefaultTint);
         var intensity = Variable(editor, "intensity", ShaderLibrary.Scalar, VariableScope.Input, 2f);
         var albedoMap = Variable(editor, "albedo map", ShaderLibrary.TextureType, VariableScope.External, null);
+        var albedo = Variable(editor, "albedo", ShaderLibrary.ColorType, VariableScope.Output, new Color(0, 0, 0, 1));
         var map = Add(editor, DataflowNodes.GetVariable, new VariableReference(albedoMap.Id));
         var tintRead = Add(editor, DataflowNodes.GetVariable, new VariableReference(tint.Id));
         var intensityRead = Add(editor, DataflowNodes.GetVariable, new VariableReference(intensity.Id));
@@ -45,7 +45,7 @@ public sealed record MaterialExample(
         var half = Add(editor, ShaderLibrary.ScalarConstant, new ScalarPayload(0.5f));
         var amount = Add(editor, ShaderLibrary.ScalarConstant, new ScalarPayload(0.25f));
         var mix = Add(editor, ShaderLibrary.Lerp);
-        var output = Add(editor, ShaderLibrary.MaterialOutput);
+        var output = Add(editor, DataflowNodes.Output, new VariableReference(albedo.Id));
         Connect(editor, map, DataflowNodes.ValueKey, sample, ShaderLibrary.AKey);
         Connect(editor, uv, ShaderLibrary.OutKey, sample, ShaderLibrary.BKey);
         Connect(editor, sample, ShaderLibrary.OutKey, tinted, ShaderLibrary.AKey);
@@ -55,10 +55,9 @@ public sealed record MaterialExample(
         Connect(editor, boosted, ShaderLibrary.OutKey, mix, ShaderLibrary.AKey);
         Connect(editor, half, ShaderLibrary.OutKey, mix, ShaderLibrary.BKey);
         Connect(editor, amount, ShaderLibrary.OutKey, mix, ShaderLibrary.TKey);
-        Connect(editor, mix, ShaderLibrary.OutKey, output, ShaderLibrary.AlbedoKey);
+        Connect(editor, mix, ShaderLibrary.OutKey, output, DataflowNodes.ResultKey);
         var grey = editor.Document.Nodes.Single(node => node.TypeId == ShaderLibrary.ScalarToColor.Id);
-        return new(editor.Document, tint, intensity, albedoMap, output.PortId(ShaderLibrary.AlbedoKey), grey.Id,
-            mix.NodeId);
+        return new(editor.Document, tint, intensity, albedoMap, albedo, grey.Id, mix.NodeId);
     }
 
     /// <summary>The albedo the example computes for one texel, tint and intensity.</summary>
@@ -91,15 +90,19 @@ public sealed record MaterialExample(
     }
 }
 
-/// <summary>Shades a grid of fragments by reading the material output once per fragment.</summary>
+/// <summary>
+/// Shades a grid of fragments with any backend: one evaluation per fragment, then a typed read of the material's
+/// declared albedo output.
+/// </summary>
 public static class MaterialRenderer
 {
     /// <summary>Renders a width × height grid of fragments sampled at texel centres.</summary>
-    public static Color[] Render(
-        InterpretedGraph graph,
+    /// <exception cref="MissingFeatureException">The graph requires a feature the renderer lacks.</exception>
+    public static async Task<Color[]> RenderAsync(
+        ICompiledGraph graph,
         InstanceBuffer instances,
         InstanceHandle instance,
-        ElementId output,
+        ElementId albedo,
         int width,
         int height)
     {
@@ -111,8 +114,8 @@ public static class MaterialRenderer
             for (var x = 0; x < width; x++)
             {
                 fragment.Uv = new((x + 0.5f) / width, (y + 0.5f) / height);
-                graph.Data.BeginEvaluation(instances, instance);
-                pixels[y * width + x] = graph.Data.Read<Color>(context, instances, instance, output);
+                await graph.EvaluateAsync(context, instances, instance);
+                pixels[y * width + x] = graph.ReadOutput<Color>(context, instances, instance, albedo);
             }
         }
         return pixels;

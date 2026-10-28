@@ -41,6 +41,7 @@ public static class GuardLibrary
         [PortDeclaration.Output(OutKey, "value", Number.Id)])
     {
         PayloadSerializer = NumberPayloadSerializer.Instance,
+        DefaultPayload = static () => new NumberPayload(0),
     };
 
     /// <summary>Whether a is less than b.</summary>
@@ -65,19 +66,24 @@ public static class GuardLibrary
     public static NodeType After { get; } = new(Id(0x206), "After", [StateNodes.From(), StateNodes.To()])
     {
         PayloadSerializer = AfterPayloadSerializer.Instance,
+        DefaultPayload = static () => new AfterPayload(1),
     };
 
     /// <summary>The guard sees the player.</summary>
-    public static TriggerType SeePlayer { get; } = new(Id(0x301), "See player");
+    public static SignalType SeePlayer { get; } = new(Id(0x301), "See player");
 
     /// <summary>The guard lost sight of the player.</summary>
-    public static TriggerType LosePlayer { get; } = new(Id(0x302), "Lose player");
+    public static SignalType LosePlayer { get; } = new(Id(0x302), "Lose player");
 
     /// <summary>The guard landed a hit and attacks again.</summary>
-    public static TriggerType Hit { get; } = new(Id(0x303), "Hit");
+    public static SignalType Hit { get; } = new(Id(0x303), "Hit");
 
-    /// <summary>Registers the port and node types, plus the built-in state and dataflow types they rely on.</summary>
-    public static void Register(GraphTypeRegistry registry)
+    /// <summary>
+    /// Registers the port and node types, the trigger signals, and the built-in state and dataflow types they rely
+    /// on. <paramref name="renamedSeePlayer"/> simulates a later release that gave the trigger a new identity,
+    /// keeping the old one as a rename entry next to every other rename.
+    /// </summary>
+    public static void Register(GraphTypeRegistry registry, StableId? renamedSeePlayer = null)
     {
         registry.PortTypes.Register(Number);
         registry.PortTypes.Register(Bool);
@@ -85,6 +91,17 @@ public static class GuardLibrary
         {
             registry.NodeTypes.Register(node);
         }
+        if (renamedSeePlayer is { } renamed)
+        {
+            registry.Signals.Register(new(renamed, SeePlayer.DisplayName));
+            registry.Signals.AddRename(SeePlayer.Id, renamed);
+        }
+        else
+        {
+            registry.Signals.Register(SeePlayer);
+        }
+        registry.Signals.Register(LosePlayer);
+        registry.Signals.Register(Hit);
         StateNodes.Register(registry);
         DataflowNodes.Register(registry);
     }
@@ -97,29 +114,11 @@ public static class GuardLibrary
         .AddNode(LessThan.Id, new DataflowNode(static c => c.Write(2, c.Read<double>(0) < c.Read<double>(1))))
         .AddNode(Not.Id, new DataflowNode(static c => c.Write(1, !c.Read<bool>(0))));
 
-    /// <summary>
-    /// Creates state semantics with the guard roles and triggers. <paramref name="renamedSeePlayer"/> simulates a
-    /// later release that gave the trigger a new identity, keeping the old one as a rename.
-    /// </summary>
-    public static StateSemantics CreateState(StableId? renamedSeePlayer = null)
-    {
-        var semantics = new StateSemantics()
-            .AddState(Attack.Id, new AttackState())
-            .AddTransition(Guarded.Id, GuardedTransition.Instance)
-            .AddTransition(After.Id, new AfterTransition());
-        if (renamedSeePlayer is { } renamed)
-        {
-            semantics.Triggers.Register(new TriggerType(renamed, SeePlayer.DisplayName));
-            semantics.Triggers.AddRename(SeePlayer.Id, renamed);
-        }
-        else
-        {
-            semantics.Triggers.Register(SeePlayer);
-        }
-        semantics.Triggers.Register(LosePlayer);
-        semantics.Triggers.Register(Hit);
-        return semantics;
-    }
+    /// <summary>Creates state semantics with the guard roles.</summary>
+    public static StateSemantics CreateState() => new StateSemantics()
+        .AddState(Attack.Id, new AttackState())
+        .AddTransition(Guarded.Id, GuardedTransition.Instance)
+        .AddTransition(After.Id, new AfterTransition());
 
     static StableId Id(int value) => new(new Guid($"9a4d0000-0000-4000-8000-{value:x12}"));
 

@@ -50,22 +50,33 @@ public class FsmSampleTests
     }
 
     [Test]
+    public async Task NewNodesGetTheirTypesDefaultPayloads()
+    {
+        await Assert.That(new AddNodeCommand(GuardLibrary.Constant).Payload).IsEqualTo(new NumberPayload(0));
+        await Assert.That(new AddNodeCommand(GuardLibrary.After).Payload).IsEqualTo(new AfterPayload(1));
+        await Assert.That(new AddNodeCommand(GuardLibrary.Guarded).Payload).IsEqualTo(new TransitionPayload());
+        await Assert.That(new AddNodeCommand(StateNodes.Transition).Payload).IsEqualTo(new TransitionPayload());
+    }
+
+    [Test]
     public async Task SavedGuardsSurviveATriggerRename()
     {
         var (example, _) = Compile(GuardLibrary.CreateState());
         var json = GraphJson.Serialize(example.Document);
         var renamed = new StableId(Guid.Parse("9a4d0000-0000-4000-8000-000000000f01"));
-        var state = GuardLibrary.CreateState(renamed);
+        var state = GuardLibrary.CreateState();
         var registry = new GraphTypeRegistry();
-        GuardLibrary.Register(registry);
+        GuardLibrary.Register(registry, renamed);
         var loaded = GraphJson.Deserialize(json, registry).Document!;
         var graph = (InterpretedGraph)new GraphInterpreter(GuardLibrary.CreateDataflow(), state: state)
             .Compile(loaded).Graph!;
         var instances = new InstanceBuffer(graph.InstanceLayout);
         var byNewName = instances.Allocate();
         var byOldName = instances.Allocate();
-        var context = new EvaluationContext();
+        var context = new EvaluationContext().Set(new StateTime());
 
+        await Assert.That(() => Evaluate(graph, new EvaluationContext(), instances, byNewName))
+            .ThrowsExactly<MissingFeatureException>();
         graph.Raise(instances, byNewName, renamed);
         graph.Raise(instances, byOldName, GuardLibrary.SeePlayer.Id);
         Evaluate(graph, context, instances, byNewName);
@@ -128,7 +139,7 @@ public class FsmSampleTests
     /// machines of the async test method out of the measured window.
     /// </summary>
     static long Frames(
-        InterpretedGraph graph,
+        ICompiledGraph graph,
         GuardExample example,
         EvaluationContext context,
         InstanceBuffer instances,
@@ -145,7 +156,7 @@ public class FsmSampleTests
     }
 
     static void Frame(
-        InterpretedGraph graph,
+        ICompiledGraph graph,
         GuardExample example,
         EvaluationContext context,
         InstanceBuffer instances,
@@ -155,7 +166,7 @@ public class FsmSampleTests
         for (var i = 0; i < guards.Length; i++)
         {
             var guard = guards[i];
-            graph.Data.SetVariable(instances, guard, example.Distance.Id, (double)((i + frame) % 4));
+            graph.SetVariable(instances, guard, example.Distance.Id, (double)((i + frame) % 4));
             if ((i + frame) % 3 == 0)
             {
                 graph.Raise(instances, guard, GuardLibrary.SeePlayer.Id);

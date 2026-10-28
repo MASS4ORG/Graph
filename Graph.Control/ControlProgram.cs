@@ -40,7 +40,11 @@ public sealed class ControlProgram
             }
         }
         tickEntries = [.. entries];
+        RequiredFeatures = [.. nodes.SelectMany(static node => node.Behavior?.RequiredFeatures ?? []).Distinct()];
     }
+
+    /// <summary>Context features the document's control nodes read.</summary>
+    public IReadOnlyList<Type> RequiredFeatures { get; }
 
     /// <summary>Runs every tick entry, in node identity order, after starting a new data evaluation.</summary>
     public ControlRunResult Tick(EvaluationContext context, InstanceBuffer instances, InstanceHandle instance)

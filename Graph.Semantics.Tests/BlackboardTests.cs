@@ -113,6 +113,91 @@ public class BlackboardTests
         await Assert.That(GraphValidator.Validate(loaded, data.Rules).Count).IsEqualTo(0);
     }
 
+    [Test]
+    public async Task DeclaredOutputsAreReadByVariableIdentity()
+    {
+        var data = CreateDataflow();
+        var editor = CreateEditor(data);
+        var gain = Variable(editor, "gain", Number, 3.0);
+        var result = Variable(editor, "result", Number, -1.0, VariableScope.Output);
+        var label = Variable(editor, "label", Text, "idle", VariableScope.Output);
+        var read = editor.AddNode(DataflowNodes.GetVariable, new VariableReference(gain.Id));
+        var doubled = editor.AddNode(Scale);
+        var output = editor.AddNode(DataflowNodes.Output, new VariableReference(result.Id));
+        editor.Wire(read, 0, doubled, 0);
+        editor.Wire(doubled, 1, output, 0);
+        var layout = new InstanceLayoutBuilder();
+        var program = CompileData(data, editor.Document, layout);
+        var instances = new InstanceBuffer(layout.Build());
+        var instance = instances.Allocate();
+        var context = new EvaluationContext();
+
+        var computed = program.ReadOutput<double>(context, instances, instance, result.Id);
+        var typed = program.TrySetVariable(instances, instance, gain.Id, 5.0);
+        var mistyped = program.TrySetVariable(instances, instance, gain.Id, 5);
+        var unknown = program.TrySetVariable(instances, instance, ElementId.New(), 5.0);
+
+        await Assert.That(computed).IsEqualTo(6);
+        await Assert.That(typed).IsTrue();
+        await Assert.That(mistyped).IsFalse();
+        await Assert.That(unknown).IsFalse();
+        await Assert.That(program.ReadOutput<double>(context, instances, instance, result.Id)).IsEqualTo(10);
+        await Assert.That(program.ReadOutputBoxed(context, instances, instance, result.Id)).IsEqualTo(10.0);
+        await Assert.That(program.ReadOutputReference<string>(context, instances, instance, label.Id))
+            .IsEqualTo("idle");
+        await Assert.That(program.ReadOutputBoxed(context, instances, instance, label.Id)).IsEqualTo("idle");
+        await Assert.That(program.Outputs.Count).IsEqualTo(2);
+        await Assert.That(() => program.ReadOutput<double>(context, instances, instance, gain.Id))
+            .ThrowsExactly<KeyNotFoundException>();
+    }
+
+    [Test]
+    public async Task OutputNodesMustTargetOneOutputAndOutputsAreNotReadable()
+    {
+        var data = CreateDataflow();
+        var editor = CreateEditor(data);
+        var gain = Variable(editor, "gain", Number, 1.0);
+        var result = Variable(editor, "result", Number, 0.0, VariableScope.Output);
+        var unused = Variable(editor, "unused", Number, 0.0, VariableScope.Output);
+        editor.AddNode(DataflowNodes.Output, new VariableReference(result.Id));
+
+        var notOutput = editor.Execute(new AddNodeCommand(DataflowNodes.Output, new VariableReference(gain.Id)));
+        var twice = editor.Execute(new AddNodeCommand(DataflowNodes.Output, new VariableReference(result.Id)));
+        var readBack = editor.Execute(new AddNodeCommand(DataflowNodes.GetVariable, new VariableReference(result.Id)));
+        var warnings = GraphValidator.Validate(editor.Document, data.Rules);
+
+        await Assert.That(notOutput.Diagnostics.Single().Id).IsEqualTo(DataflowDiagnosticIds.OutputScope);
+        await Assert.That(twice.Diagnostics.Single().Id).IsEqualTo(DataflowDiagnosticIds.OutputRedefined);
+        await Assert.That(readBack.Diagnostics.Single().Id).IsEqualTo(DataflowDiagnosticIds.OutputRead);
+        await Assert.That(warnings.Where(d => d.Id == DataflowDiagnosticIds.OutputUndefined).Select(d => d.ElementId))
+            .IsEquivalentTo([(ElementId?)result.Id, unused.Id]);
+    }
+
+    [Test]
+    public async Task ProgramsListTheFeaturesTheirNodesRequire()
+    {
+        var data = CreateDataflow();
+        var editor = CreateEditor(data);
+        editor.AddNode(Speed);
+        editor.AddNode(Constant, new ConstantPayload(1));
+
+        var program = CompileData(data, editor.Document, new());
+
+        await Assert.That(program.RequiredFeatures).IsEquivalentTo([typeof(Locomotion)]);
+    }
+
+    static GraphVariable Variable(
+        GraphEditor editor,
+        string name,
+        PortType type,
+        object? value,
+        VariableScope scope)
+    {
+        var variable = new GraphVariable(ElementId.New(), name, type.Id, scope) { DefaultValue = value };
+        editor.Execute(new SetVariableCommand(variable));
+        return variable;
+    }
+
     static GraphVariable Variable(GraphEditor editor, string name, PortType type, object? value)
     {
         var variable = new GraphVariable(ElementId.New(), name, type.Id, VariableScope.Input) { DefaultValue = value };
