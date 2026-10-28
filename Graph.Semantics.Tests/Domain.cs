@@ -8,6 +8,19 @@ public sealed record IntPayload(int Value);
 
 public sealed record LogPayload(string Label);
 
+/// <summary>The mixed State × Dataflow × Control document and the nodes tests inspect.</summary>
+public sealed record MixedDocument(
+    DataflowSemantics Data,
+    StateSemantics State,
+    ControlSemantics Control,
+    GraphEditor Editor,
+    AddNodeCommand Idle,
+    AddNodeCommand Walk,
+    AddNodeCommand Threshold,
+    AddNodeCommand Faster,
+    AddNodeCommand Stride,
+    AddNodeCommand Total);
+
 /// <summary>Host input read by the volatile speed node.</summary>
 public sealed class Locomotion
 {
@@ -173,6 +186,43 @@ static class Domain
         var diagnostics = new DiagnosticBag();
         return semantics.Compile(document, layout, diagnostics) ??
                throw new InvalidOperationException(string.Join("; ", diagnostics));
+    }
+
+    /// <summary>
+    /// Entry → Idle ↔ Walk: Idle leaves when a dataflow guard sees speed above 0.5, Walk returns on Stop. Walk
+    /// publishes its time in state, which dataflow doubles (stride) and adds to a control counter (total).
+    /// </summary>
+    public static MixedDocument BuildMixed()
+    {
+        var data = CreateDataflow();
+        var state = CreateState();
+        var control = CreateControl();
+        var editor = CreateEditor(data, state.Rules, control.Rules);
+        var entry = editor.AddNode(StateNodes.Entry);
+        var idle = editor.AddNode(StateNodes.State);
+        var walk = editor.AddNode(Walk);
+        var start = editor.AddNode(Guarded, new TransitionPayload());
+        var stop = editor.AddNode(StateNodes.Transition, new TransitionPayload(Stop.Id));
+        var speed = editor.AddNode(Speed);
+        var threshold = editor.AddNode(Constant, new ConstantPayload(0.5));
+        var faster = editor.AddNode(GreaterThan);
+        var stride = editor.AddNode(Scale);
+        var total = editor.AddNode(Add);
+        var tick = editor.AddNode(OnTick);
+        var steps = editor.AddNode(Counter);
+        editor.Wire(entry, 0, idle, 0);
+        editor.Wire(idle, 1, start, 0);
+        editor.Wire(start, 1, walk, 0);
+        editor.Wire(walk, 1, stop, 0);
+        editor.Wire(stop, 1, idle, 0);
+        editor.Wire(speed, 0, faster, 0);
+        editor.Wire(threshold, 0, faster, 1);
+        editor.Wire(faster, 2, start, 2);
+        editor.Wire(walk, 2, stride, 0);
+        editor.Wire(walk, 2, total, 0);
+        editor.Wire(steps, 2, total, 1);
+        editor.Wire(tick, 0, steps, 0);
+        return new(data, state, control, editor, idle, walk, threshold, faster, stride, total);
     }
 
     static void Require(CommandResult result)

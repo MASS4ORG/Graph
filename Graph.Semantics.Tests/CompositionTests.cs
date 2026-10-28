@@ -5,40 +5,8 @@ public class CompositionTests
     [Test]
     public async Task OneDocumentMixesStateDataflowAndControl()
     {
-        var data = CreateDataflow();
-        var state = CreateState();
-        var control = CreateControl();
-        var editor = CreateEditor(data, state.Rules, control.Rules);
-        var entry = editor.AddNode(StateNodes.Entry);
-        var idle = editor.AddNode(StateNodes.State);
-        var walk = editor.AddNode(Walk);
-        var start = editor.AddNode(Guarded, new TransitionPayload());
-        var stop = editor.AddNode(StateNodes.Transition, new TransitionPayload(Stop.Id));
-        var speed = editor.AddNode(Speed);
-        var threshold = editor.AddNode(Constant, new ConstantPayload(0.5));
-        var faster = editor.AddNode(GreaterThan);
-        var stride = editor.AddNode(Scale);
-        var total = editor.AddNode(Add);
-        var tick = editor.AddNode(OnTick);
-        var steps = editor.AddNode(Counter);
-        editor.Wire(entry, 0, idle, 0);
-        editor.Wire(idle, 1, start, 0);
-        editor.Wire(start, 1, walk, 0);
-        editor.Wire(walk, 1, stop, 0);
-        editor.Wire(stop, 1, idle, 0);
-        editor.Wire(speed, 0, faster, 0);
-        editor.Wire(threshold, 0, faster, 1);
-        editor.Wire(faster, 2, start, 2);
-        editor.Wire(walk, 2, stride, 0);
-        editor.Wire(walk, 2, total, 0);
-        editor.Wire(steps, 2, total, 1);
-        editor.Wire(tick, 0, steps, 0);
-        var layout = new InstanceLayoutBuilder();
-        var diagnostics = new DiagnosticBag();
-        var plane = data.Compile(editor.Document, layout, diagnostics)!;
-        var machine = state.Compile(editor.Document, layout, plane, diagnostics)!;
-        var flow = control.Compile(editor.Document, layout, plane, diagnostics);
-        var instances = new InstanceBuffer(layout.Build());
+        var mixed = BuildMixed();
+        var (plane, machine, flow, instances, diagnostics) = Compile(mixed);
         var instance = instances.Allocate();
         var locomotion = new Locomotion();
         var context = new EvaluationContext().Set(locomotion);
@@ -50,19 +18,60 @@ public class CompositionTests
         machine.Tick(context, instances, instance, 0.5);
         flow.Tick(context, instances, instance);
         flow.Tick(context, instances, instance);
-        var strideLength = plane.Read<double>(context, instances, instance, stride.Port(1));
-        var sum = plane.Read<double>(context, instances, instance, total.Port(2));
+        var strideLength = plane.Read<double>(context, instances, instance, mixed.Stride.Port(1));
+        var sum = plane.Read<double>(context, instances, instance, mixed.Total.Port(2));
         machine.Raise(instances, instance, machine.ResolveTrigger(Stop.Id));
         machine.Tick(context, instances, instance, 0.1);
         var stopped = machine.CurrentState(instances, instance).Id;
         machine.Tick(context, instances, instance, 0.1);
 
         await Assert.That(diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error)).IsEqualTo(0);
-        await Assert.That(resting).IsEqualTo(idle.NodeId);
+        await Assert.That(resting).IsEqualTo(mixed.Idle.NodeId);
         await Assert.That(strideLength).IsEqualTo(1);
         await Assert.That(sum).IsEqualTo(2.5);
-        await Assert.That(stopped).IsEqualTo(idle.NodeId);
-        await Assert.That(machine.CurrentState(instances, instance).Id).IsEqualTo(walk.NodeId);
+        await Assert.That(stopped).IsEqualTo(mixed.Idle.NodeId);
+        await Assert.That(machine.CurrentState(instances, instance).Id).IsEqualTo(mixed.Walk.NodeId);
+    }
+
+    [Test]
+    public async Task PublishesAreVolatileRootsForDataflowCaching()
+    {
+        var mixed = BuildMixed();
+        var (plane, _, _, instances, _) = Compile(mixed);
+        var instance = instances.Allocate();
+        var context = new EvaluationContext();
+        plane.TryResolve(mixed.Walk.Port(2), out var elapsed);
+        plane.TryResolve(mixed.Threshold.Port(0), out var threshold);
+        plane.TryResolve(mixed.Stride.Port(0), out var strideInput);
+
+        plane.Write(instances, instance, elapsed, 2.0);
+        var before = plane.Read<double>(context, instances, instance, mixed.Stride.Port(1));
+        plane.Write(instances, instance, elapsed, 3.0);
+        var after = plane.Read<double>(context, instances, instance, mixed.Stride.Port(1));
+
+        await Assert.That(before).IsEqualTo(4);
+        await Assert.That(after).IsEqualTo(6);
+        await Assert.That(plane.IsCached(mixed.Threshold.NodeId)).IsTrue();
+        await Assert.That(plane.IsCached(mixed.Stride.NodeId)).IsFalse();
+        await Assert.That(plane.IsCached(mixed.Total.NodeId)).IsFalse();
+        await Assert.That(plane.IsCached(mixed.Faster.NodeId)).IsFalse();
+        foreach (var computed in new[] { threshold, strideInput })
+        {
+            await Assert.That(() => plane.Write(instances, instance, computed, 1.0))
+                .ThrowsExactly<InvalidOperationException>();
+        }
+    }
+
+    static (DataflowProgram, StateMachineProgram, ControlProgram, InstanceBuffer, DiagnosticBag) Compile(
+        MixedDocument mixed)
+    {
+        var layout = new InstanceLayoutBuilder();
+        var diagnostics = new DiagnosticBag();
+        var document = mixed.Editor.Document;
+        var plane = mixed.Data.Compile(document, layout, diagnostics)!;
+        var machine = mixed.State.Compile(document, layout, plane, diagnostics)!;
+        var flow = mixed.Control.Compile(document, layout, plane, diagnostics);
+        return (plane, machine, flow, new(layout.Build()), diagnostics);
     }
 
     [Test]

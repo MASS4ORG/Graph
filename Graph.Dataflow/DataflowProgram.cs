@@ -99,17 +99,23 @@ public sealed class DataflowProgram : IDataPlane
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Only outputs of nodes this program does not evaluate (control, state or host nodes) accept publishes. Those
+    /// nodes are volatile roots: nothing downstream is cached per instance, and each publish starts a new evaluation.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The port is not a publishable output.</exception>
     public void Write<T>(InstanceBuffer instances, InstanceHandle instance, int port, T value) where T : unmanaged
     {
-        LocationOf(port).Write(instances, instance, value);
+        PublishTarget(port).Write(instances, instance, value);
         BeginEvaluation(instances, instance);
     }
 
     /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">The port is not a publishable output.</exception>
     public void WriteReference<T>(InstanceBuffer instances, InstanceHandle instance, int port, T? value)
         where T : class
     {
-        LocationOf(port).WriteReference(instances, instance, value);
+        PublishTarget(port).WriteReference(instances, instance, value);
         BeginEvaluation(instances, instance);
     }
 
@@ -149,6 +155,12 @@ public sealed class DataflowProgram : IDataPlane
 
     ValueLocation LocationOf(int port) =>
         ports[port].Location ?? throw new InvalidOperationException("The port carries no data.");
+
+    ValueLocation PublishTarget(int port) =>
+        ports[port].IsOutput && nodes[ports[port].Node].Behavior is null
+            ? LocationOf(port)
+            : throw new InvalidOperationException(
+                "Only outputs of nodes the data plane does not evaluate can be published.");
 
     T ReadPort<T>(InstanceBuffer instances, InstanceHandle instance, int port) where T : unmanaged
     {
