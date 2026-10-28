@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>MASS4.Graph.Samples.Shader</AssemblyName>
+        <RootNamespace>MASS4.Graph.Samples.Shader</RootNamespace>
+        <Description>Contract sample: a headless material graph with typed colour, scalar, UV and texture ports, exposed parameters and conversion nodes.</Description>
+        <IsPackable>false</IsPackable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Graph.Interpreter\Graph.Interpreter.csproj" />
+    </ItemGroup>
+
+</Project>
