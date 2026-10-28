@@ -15,6 +15,7 @@
     <Project Path="Graph.Tests/Graph.Tests.csproj"/>
     <Project Path="Graph.Semantics.Tests/Graph.Semantics.Tests.csproj"/>
     <Project Path="Graph.Interpreter.Tests/Graph.Interpreter.Tests.csproj"/>
+    <Project Path="Graph.Samples.Compositor/Graph.Samples.Compositor.csproj"/>
     <Project Path="Graph.Samples.Fsm/Graph.Samples.Fsm.csproj"/>
     <Project Path="Graph.Samples.Shader/Graph.Samples.Shader.csproj"/>
     <Project Path="Graph.Samples.Tests/Graph.Samples.Tests.csproj"/>

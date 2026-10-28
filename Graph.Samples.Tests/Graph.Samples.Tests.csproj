@@ -14,6 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Graph.Samples.Compositor\Graph.Samples.Compositor.csproj" />
         <ProjectReference Include="..\Graph.Samples.Fsm\Graph.Samples.Fsm.csproj" />
         <ProjectReference Include="..\Graph.Samples.Shader\Graph.Samples.Shader.csproj" />
     </ItemGroup>

@@ -39,6 +39,16 @@ machine.Tick(context, instances, instances.Allocate(), deltaSeconds);
 
 `DifferentialHarness` runs a `Scenario` (evaluations, signals, variable writes, host input changes) against a reference and a candidate backend and reports every observation that differs, by step, instance and element identity. Generated backends must be equivalent to the interpreter on every sample.
 
+## Contract samples
+
+Three headless samples are API tests, not demos, and run in CI through the interpreter and the differential harness:
+
+- `Graph.Samples.Shader`: a material graph with colour, scalar, UV and texture ports, exposed parameters and an editor-inserted conversion node.
+- `Graph.Samples.Fsm`: a guard state machine with cyclic states, a self-transition, typed triggers, dataflow guards and timed transitions; one asset ticks 1000 instances without allocating and survives a trigger rename.
+- `Graph.Samples.Compositor`: a video compositor driven by a timeline feature, rendered asynchronously with progress and cancellation; it references no engine assembly.
+
+They register their types by hand on purpose; `docs/registration-friction.md` records what that costs and is the requirement list for source-generated registration.
+
 ## Example
 
 ```csharp

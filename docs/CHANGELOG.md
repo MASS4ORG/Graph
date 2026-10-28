@@ -18,4 +18,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DifferentialHarness`: scenario-driven comparison of any backend with the interpreter, reporting divergences by step, instance and element #18
 - Shader/material contract sample with hand registration and the registration friction log #21
 - FSM contract sample: one guard asset across 1000 instances with typed triggers, a self-transition and timed transitions #22
+- Video compositor contract sample: frame values, timeline feature and asynchronous rendering, with no engine references #23
 - `IDataPlane`, instance array and reference slots, and `GraphDocument.GetNode`/`GetPort` so semantics compose in one document #16

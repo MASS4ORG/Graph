@@ -91,3 +91,40 @@ Requirement: the generated builder of R7 offers `machine.Transition(from, to, pa
 The guard's distance is an external variable written with `SetVariable(instance, distance.Id, value)`; hosts must carry the variable's `ElementId`.
 
 Requirement: generated, typed variable handles per asset (`guard.Distance.Set(instance, 3.0)`) resolved once.
+
+## From the video compositor sample (#23)
+
+### R15 — Object values need content equality for differential testing
+
+The harness compares observations with `Equals`. `Frame` must override `Equals` and `GetHashCode` by content, or every frame from a second backend reports as divergent. Nothing in registration says how values of a reference type compare.
+
+Requirement: value-type declarations carry an equality (or digest) the harness uses; the generator emits it or registers a comparer per port type (harness candidate: comparers in `DifferentialOptions`).
+
+### R16 — Reusing output buffers is an index-addressed idiom
+
+To avoid allocating a frame per evaluation, nodes read their own previous output with `ReadReference<Frame>(outputIndex)` and write the same object back. It works, but nothing names or documents the pattern.
+
+Requirement: typed outputs offer reuse directly (`outputs.Frame.Reuse(width, height)`), building on R2.
+
+### R17 — Host features are fetched, and silently defaulted, in every node
+
+`Time`, `Ramp`, `Pulse` and every frame-producing node call `TryGet<Timeline>` or `TryGet<RenderSettings>` and fall back to defaults when the host forgot them, so a missing feature renders a plausible but wrong image.
+
+Requirement: node declarations list the context features they need; the generator emits that list, and backends report a missing feature as a diagnostic before evaluating (core candidate: required features on the compiled graph).
+
+### R18 — Single-value payloads, again
+
+Three payloads each hold one number. The sample wrote a generic `NumberPayloadSerializer<T>` to avoid three copies, confirming R4.
+
+### R19 — Typed output reads are interpreter-bound (core)
+
+The renderer must take an `InterpretedGraph` to read the output frame through `Data.ReadReference`; the backend-neutral `ICompiledGraph` only offers boxed `Observe`. A generated backend would need its own renderer.
+
+Requirement (core): typed reads of declared outputs on `ICompiledGraph`, together with R8.
+
+## Summary for #11
+
+- Generator scope: R1–R7, R10–R14, R16–R18.
+- Core changes the generator depends on: R8 and R19 (declared outputs with typed reads), R9 (transition payload contract), R6 (default payloads on `NodeType`).
+- Harness: R15 (comparers for object values); R17 needs a home for required context features.
+- Acceptance: for each sample, the generated registration equals the hand-written one (identities, port keys, rename entries, value and payload serialization) and the differential harness reports no divergence between documents built with either.
