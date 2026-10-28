@@ -45,12 +45,13 @@ public interface IStateNode
     }
 }
 
-/// <summary>Decides whether a transition fires; checked on every tick while its source state is current.</summary>
+/// <summary>
+/// Decides whether a transition fires; checked on every tick while its source state is current, in the order of the
+/// transitions' <see cref="StateNodes.Priority"/> annotations. A transition with a <see cref="StateNodes.Trigger"/>
+/// annotation is only checked on ticks its trigger was raised, whatever its behavior.
+/// </summary>
 public interface ITransitionNode
 {
-    /// <summary>Order among the transitions of one state; higher runs first. Defaults to the payload.</summary>
-    int Priority(GraphNode node) => node.Payload is TransitionPayload payload ? payload.Priority : 0;
-
     /// <summary>Evaluation-context features the transition reads; backends refuse to run without them.</summary>
     IReadOnlyList<Type> RequiredFeatures => [];
 
@@ -58,17 +59,17 @@ public interface ITransitionNode
     bool ShouldFire(TransitionContext context);
 }
 
-/// <summary>Fires when the payload trigger was raised this tick, or at once when the payload has no trigger.</summary>
+/// <summary>Fires once its trigger annotation was raised, or at once without one.</summary>
 public sealed class TriggerTransition : ITransitionNode
 {
     /// <summary>Shared instance.</summary>
     public static TriggerTransition Instance { get; } = new();
 
     /// <inheritdoc />
-    public bool ShouldFire(TransitionContext context) => context.TriggerSatisfied;
+    public bool ShouldFire(TransitionContext context) => true;
 }
 
-/// <summary>Fires when the payload trigger (if any) was raised and the boolean condition input is true.</summary>
+/// <summary>Fires when the boolean condition input is true, once its trigger annotation (if any) was raised.</summary>
 public sealed class GuardedTransition : ITransitionNode
 {
     /// <summary>Shared instance.</summary>
@@ -76,7 +77,7 @@ public sealed class GuardedTransition : ITransitionNode
 
     /// <inheritdoc />
     public bool ShouldFire(TransitionContext context) =>
-        context.TriggerSatisfied && context.Read<bool>(context.PortIndex(StateNodes.ConditionKey));
+        context.Read<bool>(context.PortIndex(StateNodes.ConditionKey));
 }
 
 sealed class EmptyState : IStateNode
@@ -191,13 +192,8 @@ public readonly ref struct TransitionContext
     /// <summary>Seconds since the machine entered the source state.</summary>
     public double TimeInState => program.TimeInState(Instances, Instance);
 
-    /// <summary>Whether the payload names a trigger.</summary>
+    /// <summary>Whether the transition has a trigger annotation.</summary>
     public bool HasTrigger => program.TransitionAt(transition).Trigger >= 0;
-
-    /// <summary>True without a payload trigger, otherwise whether it was raised this tick.</summary>
-    public bool TriggerSatisfied =>
-        program.TransitionAt(transition).Trigger is var trigger &&
-        (trigger < 0 || program.IsRaised(Instances, Instance, trigger));
 
     /// <summary>Whether a trigger was raised this tick; unknown triggers are never raised.</summary>
     public bool IsRaised(StableId trigger) =>

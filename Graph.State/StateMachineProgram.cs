@@ -103,7 +103,8 @@ public sealed class StateMachineProgram
         var changed = false;
         for (var t = entry.FirstTransition; t < entry.FirstTransition + entry.TransitionCount && !changed; t++)
         {
-            if (transitions[t].Behavior.ShouldFire(new(this, context, instances, instance, t)))
+            if (transitions[t].Trigger is var trigger && (trigger < 0 || IsRaised(instances, instance, trigger)) &&
+                transitions[t].Behavior.ShouldFire(new(this, context, instances, instance, t)))
             {
                 Change(context, instances, instance, state, transitions[t].Target);
                 changed = true;

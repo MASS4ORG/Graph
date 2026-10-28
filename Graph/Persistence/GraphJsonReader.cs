@@ -14,7 +14,7 @@ public static partial class GraphJson
     static readonly HashSet<string> RootProperties =
         ["format", "schemaVersion", "assetId", "variables", "nodes", "edges", "layout"];
 
-    static readonly HashSet<string> NodeProperties = ["id", "type", "version", "ports", "payload"];
+    static readonly HashSet<string> NodeProperties = ["id", "type", "version", "ports", "annotations", "payload"];
 
     /// <summary>Loads a document, resolving renamed types and migrating older nodes through the registry.</summary>
     public static GraphLoadResult Deserialize(string json, GraphTypeRegistry registry) =>
@@ -149,7 +149,8 @@ public static partial class GraphJson
                     "The node or a port identity is used twice; dropped.");
                 return;
             }
-            document.AddNodeCore(new(id, typeId, version, ports, payload)
+            var annotations = ReadAnnotations(element, id, registry, diagnostics);
+            document.AddNodeCore(new(id, typeId, version, ports, payload, annotations)
             {
                 Extensions = ReadExtensions(element, NodeProperties),
             });

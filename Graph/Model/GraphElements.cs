@@ -66,14 +66,22 @@ public sealed class UnknownPayload(JsonElement json)
 public sealed class GraphNode
 {
     readonly GraphPort[] ports;
+    readonly Dictionary<StableId, object> annotations;
 
-    internal GraphNode(ElementId id, StableId typeId, int typeVersion, GraphPort[] ports, object? payload)
+    internal GraphNode(
+        ElementId id,
+        StableId typeId,
+        int typeVersion,
+        GraphPort[] ports,
+        object? payload,
+        Dictionary<StableId, object>? annotations = null)
     {
         Id = id;
         TypeId = typeId;
         TypeVersion = typeVersion;
         this.ports = ports;
         Payload = payload;
+        this.annotations = annotations ?? [];
     }
 
     /// <summary>Identity of the node within the document.</summary>
@@ -90,6 +98,25 @@ public sealed class GraphNode
 
     /// <summary>Application data; treat it as an immutable value and replace it with a command.</summary>
     public object? Payload { get; internal set; }
+
+    /// <summary>
+    /// Metadata keyed by canonical <see cref="AnnotationType"/> identity, consumed by the owning semantics when
+    /// compiling; evaluators never read it. Values of unregistered annotation types are preserved as
+    /// <see cref="UnknownPayload"/>.
+    /// </summary>
+    public IReadOnlyDictionary<StableId, object> Annotations => annotations;
+
+    internal void SetAnnotation(StableId type, object? value)
+    {
+        if (value is null)
+        {
+            annotations.Remove(type);
+        }
+        else
+        {
+            annotations[type] = value;
+        }
+    }
 
     /// <summary>Saved properties this version does not understand, written back verbatim.</summary>
     public IReadOnlyDictionary<string, JsonElement> Extensions { get; internal init; } = EmptyExtensions;
@@ -129,6 +156,9 @@ public enum GraphChangeKind
 
     /// <summary>A node payload was replaced.</summary>
     PayloadChanged,
+
+    /// <summary>A node annotation was set or removed.</summary>
+    AnnotationChanged,
 
     /// <summary>An edge was added.</summary>
     EdgeAdded,

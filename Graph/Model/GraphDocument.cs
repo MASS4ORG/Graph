@@ -148,6 +148,12 @@ public sealed class GraphDocument
         Record(GraphChangeKind.PayloadChanged, node.Id);
     }
 
+    internal void SetAnnotationCore(GraphNode node, StableId type, object? value)
+    {
+        node.SetAnnotation(type, value);
+        Record(GraphChangeKind.AnnotationChanged, node.Id);
+    }
+
     internal void SetVariableCore(GraphVariable variable)
     {
         var existed = variables.ContainsKey(variable.Id);

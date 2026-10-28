@@ -21,8 +21,11 @@ public static partial class GraphJson
     /// <summary>Value of the <c>format</c> property identifying graph documents.</summary>
     public const string FormatName = "mass4.graph";
 
-    /// <summary>Document schema version this library writes and the newest it reads.</summary>
-    public const int SchemaVersion = 1;
+    /// <summary>
+    /// Document schema version this library writes and the newest it reads. Version 2 added node annotations;
+    /// version 1 documents still load, with their nodes upgraded by the registered per-type migrations.
+    /// </summary>
+    public const int SchemaVersion = 2;
 
     /// <summary>Writes a document to a string.</summary>
     /// <exception cref="InvalidOperationException">A non-null value has no serializer to write it.</exception>
@@ -137,6 +140,7 @@ public static partial class GraphJson
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
+        WriteAnnotations(writer, node);
         if (node.Payload is not null)
         {
             writer.WritePropertyName("payload");
@@ -144,6 +148,42 @@ public static partial class GraphJson
             WriteValue(writer, node.Payload, serializer, $"node {node.Id}");
         }
         WriteExtensions(writer, node.Extensions);
+        writer.WriteEndObject();
+    }
+
+    /// <summary>Writes annotations ordered by type identity, each encoded by its value kind.</summary>
+    static void WriteAnnotations(Utf8JsonWriter writer, GraphNode node)
+    {
+        if (node.Annotations.Count == 0)
+        {
+            return;
+        }
+        writer.WriteStartObject("annotations");
+        foreach (var (type, value) in node.Annotations.OrderBy(static pair => pair.Key))
+        {
+            writer.WritePropertyName(type.ToString());
+            switch (value)
+            {
+                case UnknownPayload unknown:
+                    unknown.Json.WriteTo(writer);
+                    break;
+                case StableId signal:
+                    writer.WriteStringValue(signal.ToString());
+                    break;
+                case int integer:
+                    writer.WriteNumberValue(integer);
+                    break;
+                case double number:
+                    writer.WriteNumberValue(number);
+                    break;
+                case bool flag:
+                    writer.WriteBooleanValue(flag);
+                    break;
+                default:
+                    writer.WriteStringValue((string)value);
+                    break;
+            }
+        }
         writer.WriteEndObject();
     }
 

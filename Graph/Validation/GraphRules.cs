@@ -18,37 +18,38 @@ public sealed class GraphValidationContext
     /// <summary>Changes being validated, or null when the whole document is validated.</summary>
     public IReadOnlyList<GraphChange>? Changes { get; }
 
-    /// <summary>Nodes added or changed (every node for full validation); removed nodes are skipped.</summary>
+    /// <summary>
+    /// Nodes added, or whose payload or annotations changed (every node for full validation); removed nodes are
+    /// skipped.
+    /// </summary>
     public IEnumerable<GraphNode> AffectedNodes =>
         Changes is null
             ? Graph.Nodes
-            : Affected<GraphNode>(GraphChangeKind.NodeAdded, GraphChangeKind.PayloadChanged, Graph.TryGetNode);
+            : Affected<GraphNode>(Graph.TryGetNode,
+                GraphChangeKind.NodeAdded, GraphChangeKind.PayloadChanged, GraphChangeKind.AnnotationChanged);
 
     /// <summary>Edges added (every edge for full validation).</summary>
     public IEnumerable<GraphEdge> AffectedEdges =>
-        Changes is null
-            ? Graph.Edges
-            : Affected<GraphEdge>(GraphChangeKind.EdgeAdded, GraphChangeKind.EdgeAdded, Graph.TryGetEdge);
+        Changes is null ? Graph.Edges : Affected<GraphEdge>(Graph.TryGetEdge, GraphChangeKind.EdgeAdded);
 
     /// <summary>Variables added or changed (every variable for full validation).</summary>
     public IEnumerable<GraphVariable> AffectedVariables =>
         Changes is null
             ? Graph.Variables
             : Affected<GraphVariable>(
-                GraphChangeKind.VariableAdded, GraphChangeKind.VariableChanged, Graph.TryGetVariable);
+                Graph.TryGetVariable, GraphChangeKind.VariableAdded, GraphChangeKind.VariableChanged);
 
     /// <summary>Reports a finding; any error rolls the validated mutation back.</summary>
     public void Report(Diagnostic diagnostic) => diagnostics.Add(diagnostic);
 
     delegate bool Lookup<T>(ElementId id, [NotNullWhen(true)] out T? value);
 
-    IEnumerable<T> Affected<T>(GraphChangeKind first, GraphChangeKind second, Lookup<T> lookup)
+    IEnumerable<T> Affected<T>(Lookup<T> lookup, params GraphChangeKind[] kinds)
     {
         HashSet<ElementId> seen = [];
         foreach (var change in Changes!)
         {
-            if ((change.Kind == first || change.Kind == second) && seen.Add(change.ElementId) &&
-                lookup(change.ElementId, out var value))
+            if (kinds.Contains(change.Kind) && seen.Add(change.ElementId) && lookup(change.ElementId, out var value))
             {
                 yield return value;
             }

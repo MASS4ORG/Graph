@@ -85,6 +85,11 @@ public sealed class AddNodeCommand : IGraphCommand
     /// <summary>Initial application data.</summary>
     public object? Payload { get; }
 
+    /// <summary>
+    /// Initial annotations keyed by registered annotation type; checked like <see cref="SetAnnotationCommand"/>.
+    /// </summary>
+    public IReadOnlyDictionary<StableId, object> Annotations { get; init; } = new Dictionary<StableId, object>();
+
     /// <summary>Identity of the node to add.</summary>
     public ElementId NodeId { get; }
 
@@ -117,12 +122,34 @@ public sealed class AddNodeCommand : IGraphCommand
                 "The node or one of its ports already exists.");
             return false;
         }
+        if (!TryResolveAnnotations(graph, diagnostics, out var annotations))
+        {
+            return false;
+        }
         var ports = new GraphPort[portIds.Length];
         for (var i = 0; i < ports.Length; i++)
         {
             ports[i] = new(portIds[i], NodeId, Type.Ports[i]);
         }
-        graph.AddNodeCore(new(NodeId, Type.Id, Type.Version, ports, Payload));
+        graph.AddNodeCore(new(NodeId, Type.Id, Type.Version, ports, Payload, annotations));
+        return true;
+    }
+
+    bool TryResolveAnnotations(
+        GraphDocument graph,
+        DiagnosticBag diagnostics,
+        out Dictionary<StableId, object> annotations)
+    {
+        annotations = [];
+        foreach (var (type, value) in Annotations)
+        {
+            if (AnnotationRules.Check(graph.Registry, NodeId, type, value, out var canonical) is { } problem)
+            {
+                diagnostics.Add(problem);
+                return false;
+            }
+            annotations[canonical] = value;
+        }
         return true;
     }
 
@@ -236,7 +263,8 @@ public sealed class ConnectCommand(ElementId source, ElementId target, ElementId
         return from.Direction == PortDirection.Output && to.Direction == PortDirection.Input
             ? null
             : Error(GraphDiagnosticIds.DirectionMismatch, Edge.Id,
-                $"Edges run from an output to an input; '{from.Declaration.Name}' → '{to.Declaration.Name}' does not.");
+                $"Edges run from an output to an input; "
+                + $"'{from.Declaration.Name}' → '{to.Declaration.Name}' does not.");
     }
 
     Diagnostic? CheckEdges(GraphDocument graph, GraphPort from, GraphPort to)

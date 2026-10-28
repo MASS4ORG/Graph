@@ -25,3 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Required context features: `EvaluationContext.Get`/`Require`, `MissingFeatureException`, and `RequiredFeatures` on behaviors, programs and `ICompiledGraph`; missing features fail instead of defaulting #18
 - Typed `ICompiledGraph.SetVariable<T>` and per-type comparers in the differential harness #18
 - `IDataPlane`, instance array and reference slots, and `GraphDocument.GetNode`/`GetPort` so semantics compose in one document #16
+- Node annotations: registered `AnnotationType` identities with a closed set of value kinds, `SetAnnotationCommand` and `AddNodeCommand.Annotations`; edit-time metadata the owning semantics consumes at compilation, never read by evaluators #9
+- State `Trigger` and `Priority` annotations replace `TransitionPayload`; every transition type waits for its trigger annotation, so custom transitions (timed, guarded) combine with triggers without re-implementing them #15
+- Document schema 2 with node annotations; schema 1 documents still load and State migrates version 1 transitions, lifting their payload into annotations #9 #15

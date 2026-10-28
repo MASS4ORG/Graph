@@ -116,11 +116,15 @@ public static class StateDiagnosticIds
 
     /// <summary>A transition does not join two states.</summary>
     public const string TransitionUnconnected = "MG3006";
+
+    /// <summary>A trigger or priority annotation sits on a node that is not a transition.</summary>
+    public const string MisplacedAnnotation = "MG3007";
 }
 
 /// <summary>
 /// Rejects state-flow edges between roles that cannot follow each other (only entry → state, state → transition and
-/// transition → state are valid) and transitions naming unregistered triggers.
+/// transition → state are valid), trigger and priority annotations on anything but transitions, and triggers that
+/// are not registered signals.
 /// </summary>
 /// <param name="semantics">Holds the bound roles.</param>
 sealed class StateStructureRule(StateSemantics semantics) : IGraphRule
@@ -140,18 +144,29 @@ sealed class StateStructureRule(StateSemantics semantics) : IGraphRule
         }
         foreach (var node in context.AffectedNodes)
         {
-            if (UnknownTrigger(graph.Registry.Signals, node) is { } trigger)
+            if (CheckAnnotations(graph.Registry.Signals, node) is { } diagnostic)
             {
-                context.Report(new(StateDiagnosticIds.UnknownTrigger, DiagnosticSeverity.Error, node.Id,
-                    $"Trigger {trigger} is not a registered signal."));
+                context.Report(diagnostic);
             }
         }
     }
 
-    static StableId? UnknownTrigger(IdentityRegistry<SignalType> signals, GraphNode node) =>
-        node.Payload is TransitionPayload { Trigger: { } trigger } && !signals.TryResolve(trigger, out _)
-            ? trigger
+    Diagnostic? CheckAnnotations(IdentityRegistry<SignalType> signals, GraphNode node)
+    {
+        var annotations = node.Annotations;
+        var annotated = annotations.ContainsKey(StateNodes.Trigger.Id)
+            || annotations.ContainsKey(StateNodes.Priority.Id);
+        if (annotated && semantics.RoleOf(node) != StateRole.Transition)
+        {
+            return new(StateDiagnosticIds.MisplacedAnnotation, DiagnosticSeverity.Error, node.Id,
+                "Trigger and priority annotations belong on transitions only.");
+        }
+        return annotations.TryGetValue(StateNodes.Trigger.Id, out var value) && value is StableId trigger &&
+               !signals.TryResolve(trigger, out _)
+            ? new(StateDiagnosticIds.UnknownTrigger, DiagnosticSeverity.Error, node.Id,
+                $"Trigger {trigger} is not a registered signal.")
             : null;
+    }
 
     Diagnostic? Check(GraphNode from, GraphNode to, GraphEdge edge)
     {

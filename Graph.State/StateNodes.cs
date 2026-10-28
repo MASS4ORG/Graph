@@ -1,11 +1,12 @@
+using System.Text.Json.Nodes;
+
 namespace MASS4.Graph.State;
 
-/// <summary>Payload of transition nodes: an optional typed trigger and a priority among sibling transitions.</summary>
-/// <param name="Trigger">Identity of a registered <see cref="SignalType"/>; null fires without a trigger.</param>
-/// <param name="Priority">Higher priorities are checked first; ties resolve by node identity.</param>
-public sealed record TransitionPayload(StableId? Trigger = null, int Priority = 0);
-
-/// <summary>The built-in state-flow port type and node types, plus helpers for domain node types.</summary>
+/// <summary>
+/// The built-in state-flow port type, node types and transition annotations, plus helpers for domain node types.
+/// A transition's trigger and priority are annotations: semantic metadata the state compiler consumes, never payload
+/// content, so custom transition types keep their own payloads and still get both.
+/// </summary>
 public static class StateNodes
 {
     /// <summary>Identity of the state-flow port type that joins states and transitions.</summary>
@@ -32,6 +33,14 @@ public static class StateNodes
     /// <summary>Key of a guarded transition's boolean data input.</summary>
     public static StableId ConditionKey { get; } = Id(0x216);
 
+    /// <summary>The registered signal a transition waits for; without it the transition needs no trigger.</summary>
+    public static AnnotationType Trigger { get; } = new(Id(0x221), "trigger", AnnotationKind.Signal);
+
+    /// <summary>
+    /// Order among the transitions of one state; higher is checked first, ties resolve by node identity.
+    /// </summary>
+    public static AnnotationType Priority { get; } = new(Id(0x222), "priority", AnnotationKind.Integer);
+
     /// <summary>Marks the initial state; exactly one per state machine.</summary>
     public static NodeType Entry { get; } = new(Id(0x202), "Entry",
         [new(StartKey, "start", PortDirection.Output, FlowTypeId, PortMultiplicity.Single)]);
@@ -39,12 +48,11 @@ public static class StateNodes
     /// <summary>A state without behavior of its own.</summary>
     public static NodeType State { get; } = new(Id(0x203), "State", [Enter(), Exit()]);
 
-    /// <summary>A transition that fires when its trigger is raised, or at once without a trigger.</summary>
-    public static NodeType Transition { get; } = new(Id(0x204), "Transition", [From(), To()])
-    {
-        PayloadSerializer = TransitionPayloadSerializer.Instance,
-        DefaultPayload = static () => new TransitionPayload(),
-    };
+    /// <summary>
+    /// A transition that fires when its trigger is raised, or at once without a trigger. Version 2 moved trigger and
+    /// priority from the payload into annotations.
+    /// </summary>
+    public static NodeType Transition { get; } = new(Id(0x204), "Transition", [From(), To()]) { Version = 2 };
 
     /// <summary>Declares a state's flow input, which any number of transitions may enter.</summary>
     public static PortDeclaration Enter() =>
@@ -64,55 +72,77 @@ public static class StateNodes
 
     /// <summary>
     /// Creates a transition type that also requires a boolean data input to be true. The domain owns the boolean
-    /// port type; bind the result with <see cref="GuardedTransition"/>.
+    /// port type; bind the result with <see cref="GuardedTransition"/> and register its migration with
+    /// <see cref="AddTransitionMigration"/>.
     /// </summary>
     public static NodeType CreateGuardedTransition(StableId id, string displayName, StableId boolTypeId) =>
         new(id, displayName, [From(), To(), PortDeclaration.Input(ConditionKey, "condition", boolTypeId)])
         {
-            PayloadSerializer = TransitionPayloadSerializer.Instance,
-            DefaultPayload = static () => new TransitionPayload(),
+            Version = 2,
         };
 
-    /// <summary>Registers the state-flow port type and the built-in node types.</summary>
+    /// <summary>Annotations for a new transition, for <see cref="AddNodeCommand.Annotations"/>.</summary>
+    public static IReadOnlyDictionary<StableId, object> Annotations(StableId? trigger = null, int priority = 0)
+    {
+        Dictionary<StableId, object> annotations = [];
+        if (trigger is { } signal)
+        {
+            annotations[Trigger.Id] = signal;
+        }
+        if (priority != 0)
+        {
+            annotations[Priority.Id] = priority;
+        }
+        return annotations;
+    }
+
+    /// <summary>
+    /// Registers the state-flow port type, the built-in node types, the transition annotations and the built-in
+    /// transition's version 1 → 2 migration.
+    /// </summary>
     public static void Register(GraphTypeRegistry registry)
     {
         registry.PortTypes.Register(FlowType);
         registry.NodeTypes.Register(Entry);
         registry.NodeTypes.Register(State);
         registry.NodeTypes.Register(Transition);
+        registry.Annotations.Register(Trigger);
+        registry.Annotations.Register(Priority);
+        AddTransitionMigration(registry, Transition.Id);
     }
+
+    /// <summary>
+    /// Registers the version 1 → 2 migration of a transition type: the version 1 payload
+    /// <c>{"trigger": id, "priority": n}</c> becomes trigger and priority annotations, and the payload is dropped.
+    /// </summary>
+    public static void AddTransitionMigration(GraphTypeRegistry registry, StableId transitionTypeId) =>
+        registry.AddMigration(new(transitionTypeId, 1, LiftPayload));
 
     internal static bool IsFlow(GraphPort port) => port.TypeId == FlowTypeId;
 
+    static JsonObject LiftPayload(JsonObject node)
+    {
+        if (node["payload"] is not JsonObject payload)
+        {
+            return node;
+        }
+        var existing = node["annotations"] as JsonObject;
+        var annotations = existing ?? [];
+        if (payload["trigger"] is { } trigger)
+        {
+            annotations[Trigger.Id.ToString()] = trigger.DeepClone();
+        }
+        if (payload["priority"] is { } priority && priority.GetValue<int>() != 0)
+        {
+            annotations[Priority.Id.ToString()] = priority.DeepClone();
+        }
+        node.Remove("payload");
+        if (existing is null && annotations.Count > 0)
+        {
+            node["annotations"] = annotations;
+        }
+        return node;
+    }
+
     static StableId Id(int value) => new(new Guid($"4d415353-3447-5241-5048-{value:x12}"));
-}
-
-/// <summary>Reads and writes <see cref="TransitionPayload"/> without reflection.</summary>
-sealed class TransitionPayloadSerializer : IValueSerializer
-{
-    public static TransitionPayloadSerializer Instance { get; } = new();
-
-    public void Write(Utf8JsonWriter writer, object? value)
-    {
-        var payload = (TransitionPayload)value!;
-        writer.WriteStartObject();
-        if (payload.Trigger is { } trigger)
-        {
-            writer.WriteString("trigger", trigger.ToString());
-        }
-        if (payload.Priority != 0)
-        {
-            writer.WriteNumber("priority", payload.Priority);
-        }
-        writer.WriteEndObject();
-    }
-
-    public object? Read(JsonElement element)
-    {
-        StableId? trigger = element.TryGetProperty("trigger", out var saved)
-            ? StableId.Parse(saved.GetString()!)
-            : null;
-        var priority = element.TryGetProperty("priority", out var number) ? number.GetInt32() : 0;
-        return new TransitionPayload(trigger, priority);
-    }
 }

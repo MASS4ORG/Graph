@@ -40,8 +40,8 @@ public class StateTests
         var low = editor.AddNode(StateNodes.State);
         var high = editor.AddNode(StateNodes.State);
         editor.Wire(entry, 0, idle, 0);
-        Join(editor, idle, low, new TransitionPayload(Go.Id));
-        Join(editor, idle, high, new TransitionPayload(Go.Id, Priority: 5));
+        Join(editor, idle, low, Go.Id);
+        Join(editor, idle, high, Go.Id, priority: 5);
         var layout = new InstanceLayoutBuilder();
         var program = state.Compile(editor.Document, layout, null, new())!;
         var instances = new InstanceBuffer(layout.Build());
@@ -52,6 +52,37 @@ public class StateTests
         program.Tick(new(), instances, instance, 0);
 
         await Assert.That(program.CurrentState(instances, instance).Id).IsEqualTo(high.NodeId);
+    }
+
+    [Test]
+    public async Task EveryTransitionTypeWaitsForItsTriggerAnnotation()
+    {
+        var eager = new NodeType(Id(362), "Eager", [StateNodes.From(), StateNodes.To()]);
+        var state = CreateState().AddTransition(eager.Id, new EagerTransition());
+        var editor = CreateEditor(CreateDataflow(), state.Rules);
+        editor.Document.Registry.NodeTypes.Register(eager);
+        var entry = editor.AddNode(StateNodes.Entry);
+        var idle = editor.AddNode(StateNodes.State);
+        var walk = editor.AddNode(StateNodes.State);
+        editor.Wire(entry, 0, idle, 0);
+        var transition = editor.AddTransition(eager, Go.Id);
+        editor.Wire(idle, 1, transition, 0);
+        editor.Wire(transition, 1, walk, 0);
+        var layout = new InstanceLayoutBuilder();
+        var program = state.Compile(editor.Document, layout, null, new())!;
+        var instances = new InstanceBuffer(layout.Build());
+        var instance = instances.Allocate();
+
+        program.Initialize(new(), instances, instance);
+        program.Tick(new(), instances, instance, 1);
+        program.Raise(instances, instance, program.ResolveTrigger(Stop.Id));
+        var unraised = program.Tick(new(), instances, instance, 1);
+        program.Raise(instances, instance, program.ResolveTrigger(Go.Id));
+        var raised = program.Tick(new(), instances, instance, 0);
+
+        await Assert.That(unraised).IsFalse();
+        await Assert.That(raised).IsTrue();
+        await Assert.That(program.CurrentState(instances, instance).Id).IsEqualTo(walk.NodeId);
     }
 
     [Test]
@@ -66,7 +97,7 @@ public class StateTests
         var ground = editor.AddNode(StateNodes.State);
         var air = editor.AddNode(StateNodes.State);
         editor.Wire(entry, 0, ground, 0);
-        Join(editor, ground, air, new TransitionPayload(Id(409)));
+        Join(editor, ground, air, Id(409));
         var layout = new InstanceLayoutBuilder();
         var program = state.Compile(editor.Document, layout, null, new())!;
         var instances = new InstanceBuffer(layout.Build());
@@ -92,11 +123,19 @@ public class StateTests
         var stray = editor.AddNode(loose);
 
         var direct = editor.Link(a, 1, b, 0);
-        var unknown = editor.Execute(new AddNodeCommand(StateNodes.Transition, new TransitionPayload(Id(499))));
+        var unknown = editor.Execute(new AddNodeCommand(StateNodes.Transition)
+        {
+            Annotations = StateNodes.Annotations(Id(499)),
+        });
+        var misplaced = editor.Execute(new SetAnnotationCommand(a.NodeId, StateNodes.Priority.Id, 2));
+        var transition = editor.AddTransition(StateNodes.Transition);
+        var retargeted = editor.Execute(new SetAnnotationCommand(transition.NodeId, StateNodes.Trigger.Id, Id(498)));
         var unbound = editor.Link(a, 1, stray, 0);
 
         await Assert.That(direct.Diagnostics.Single().Id).IsEqualTo(StateDiagnosticIds.InvalidFlow);
         await Assert.That(unknown.Diagnostics.Single().Id).IsEqualTo(StateDiagnosticIds.UnknownTrigger);
+        await Assert.That(misplaced.Diagnostics.Single().Id).IsEqualTo(StateDiagnosticIds.MisplacedAnnotation);
+        await Assert.That(retargeted.Diagnostics.Single().Id).IsEqualTo(StateDiagnosticIds.UnknownTrigger);
         await Assert.That(unbound.Succeeded).IsTrue();
         await Assert.That(unbound.Diagnostics.Single().Id).IsEqualTo(StateDiagnosticIds.UnboundFlowNode);
         await Assert.That(() => state.AddState(StateNodes.Transition.Id, new CountingState()))
@@ -182,21 +221,6 @@ public class StateTests
     }
 
     [Test]
-    public async Task TransitionPayloadsRoundTrip()
-    {
-        var state = CreateState();
-        var editor = CreateEditor(CreateDataflow(), state.Rules);
-        editor.AddNode(StateNodes.Transition, new TransitionPayload(Go.Id, 3));
-        editor.AddNode(StateNodes.Transition, new TransitionPayload());
-
-        var loaded = GraphJson.Deserialize(GraphJson.Serialize(editor.Document), CreateRegistry()).Document!;
-
-        var payloads = loaded.Nodes.Select(node => node.Payload).OfType<TransitionPayload>().ToArray();
-        await Assert.That(payloads).Contains(new TransitionPayload(Go.Id, 3));
-        await Assert.That(payloads).Contains(new TransitionPayload());
-    }
-
-    [Test]
     public async Task OneAssetThousandInstancesTickWithoutAllocating()
     {
         var machine = Machine.Build(CreateState(), guarded: true);
@@ -247,9 +271,14 @@ public class StateTests
         return string.Join(",", diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id));
     }
 
-    static void Join(GraphEditor editor, AddNodeCommand from, AddNodeCommand to, TransitionPayload payload)
+    static void Join(
+        GraphEditor editor,
+        AddNodeCommand from,
+        AddNodeCommand to,
+        StableId? trigger = null,
+        int priority = 0)
     {
-        var transition = editor.AddNode(StateNodes.Transition, payload);
+        var transition = editor.AddTransition(StateNodes.Transition, trigger, priority);
         editor.Wire(from, 1, transition, 0);
         editor.Wire(transition, 1, to, 0);
     }
@@ -270,8 +299,7 @@ public class StateTests
             var idle = editor.AddNode(StateNodes.State);
             var walk = editor.AddNode(Walk);
             editor.Wire(entry, 0, idle, 0);
-            var payload = new TransitionPayload(guarded ? null : Go.Id);
-            var go = editor.AddNode(guarded ? Guarded : StateNodes.Transition, payload);
+            var go = editor.AddTransition(guarded ? Guarded : StateNodes.Transition, guarded ? null : Go.Id);
             editor.Wire(idle, 1, go, 0);
             editor.Wire(go, 1, walk, 0);
             if (guarded)
@@ -283,7 +311,7 @@ public class StateTests
                 editor.Wire(threshold, 0, faster, 1);
                 editor.Wire(faster, 2, go, 2);
             }
-            var stop = editor.AddNode(StateNodes.Transition, new TransitionPayload(Stop.Id));
+            var stop = editor.AddTransition(StateNodes.Transition, Stop.Id);
             editor.Wire(walk, 1, stop, 0);
             editor.Wire(stop, 1, idle, 0);
             var layout = new InstanceLayoutBuilder();
@@ -324,5 +352,11 @@ public class StateTests
         public bool ShouldFire(TransitionContext context) =>
             !context.HasTrigger && context.IsRaised(Stop.Id) && context.TimeInState >= 0 &&
             context.Payload is null && context.Node.TypeId == Id(361);
+    }
+
+    /// <summary>Would fire on every tick; the machine holds it back until its trigger is raised.</summary>
+    sealed class EagerTransition : ITransitionNode
+    {
+        public bool ShouldFire(TransitionContext context) => context.HasTrigger;
     }
 }

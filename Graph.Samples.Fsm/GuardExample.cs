@@ -40,11 +40,11 @@ public sealed record GuardExample(
         var attack = Add(editor, GuardLibrary.Attack);
         var search = Add(editor, StateNodes.State);
         Connect(editor, entry, StateNodes.StartKey, patrol, StateNodes.EnterKey);
-        Join(editor, patrol, chase, StateNodes.Transition, new TransitionPayload(GuardLibrary.SeePlayer.Id));
-        Join(editor, attack, attack, StateNodes.Transition, new TransitionPayload(GuardLibrary.Hit.Id, Priority: 1));
-        Join(editor, chase, search, StateNodes.Transition, new TransitionPayload(GuardLibrary.LosePlayer.Id));
-        Join(editor, search, chase, StateNodes.Transition, new TransitionPayload(GuardLibrary.SeePlayer.Id));
-        Join(editor, search, patrol, GuardLibrary.After, new AfterPayload(3));
+        Join(editor, patrol, chase, StateNodes.Transition, null, StateNodes.Annotations(GuardLibrary.SeePlayer.Id));
+        Join(editor, attack, attack, StateNodes.Transition, null, StateNodes.Annotations(GuardLibrary.Hit.Id, 1));
+        Join(editor, chase, search, StateNodes.Transition, null, StateNodes.Annotations(GuardLibrary.LosePlayer.Id));
+        Join(editor, search, chase, StateNodes.Transition, null, StateNodes.Annotations(GuardLibrary.SeePlayer.Id));
+        Join(editor, search, patrol, GuardLibrary.After, new AfterPayload(3), StateNodes.Annotations());
         var close = Add(editor, GuardLibrary.LessThan);
         var far = Add(editor, GuardLibrary.Not);
         var reach = Add(editor, GuardLibrary.Constant, new NumberPayload(2));
@@ -52,8 +52,8 @@ public sealed record GuardExample(
         Connect(editor, read, DataflowNodes.ValueKey, close, GuardLibrary.AKey);
         Connect(editor, reach, GuardLibrary.OutKey, close, GuardLibrary.BKey);
         Connect(editor, close, GuardLibrary.OutKey, far, GuardLibrary.AKey);
-        var engage = Join(editor, chase, attack, GuardLibrary.Guarded, new TransitionPayload());
-        var retreat = Join(editor, attack, chase, GuardLibrary.Guarded, new TransitionPayload());
+        var engage = Join(editor, chase, attack, GuardLibrary.Guarded, null, StateNodes.Annotations());
+        var retreat = Join(editor, attack, chase, GuardLibrary.Guarded, null, StateNodes.Annotations());
         Connect(editor, close, GuardLibrary.OutKey, engage, StateNodes.ConditionKey);
         Connect(editor, far, GuardLibrary.OutKey, retreat, StateNodes.ConditionKey);
         return new(editor.Document, distance, patrol.NodeId, chase.NodeId, attack.NodeId, search.NodeId,
@@ -65,9 +65,11 @@ public sealed record GuardExample(
         AddNodeCommand from,
         AddNodeCommand to,
         NodeType type,
-        object payload)
+        object? payload,
+        IReadOnlyDictionary<StableId, object> annotations)
     {
-        var transition = Add(editor, type, payload);
+        var transition = new AddNodeCommand(type, payload) { Annotations = annotations };
+        Require(editor.Execute(transition));
         Connect(editor, from, StateNodes.ExitKey, transition, StateNodes.FromKey);
         Connect(editor, transition, StateNodes.ToKey, to, StateNodes.EnterKey);
         return transition;

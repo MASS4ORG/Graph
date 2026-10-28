@@ -103,6 +103,7 @@ public static class GuardLibrary
         registry.Signals.Register(LosePlayer);
         registry.Signals.Register(Hit);
         StateNodes.Register(registry);
+        StateNodes.AddTransitionMigration(registry, Guarded.Id);
         DataflowNodes.Register(registry);
     }
 

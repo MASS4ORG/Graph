@@ -54,8 +54,8 @@ public class FsmSampleTests
     {
         await Assert.That(new AddNodeCommand(GuardLibrary.Constant).Payload).IsEqualTo(new NumberPayload(0));
         await Assert.That(new AddNodeCommand(GuardLibrary.After).Payload).IsEqualTo(new AfterPayload(1));
-        await Assert.That(new AddNodeCommand(GuardLibrary.Guarded).Payload).IsEqualTo(new TransitionPayload());
-        await Assert.That(new AddNodeCommand(StateNodes.Transition).Payload).IsEqualTo(new TransitionPayload());
+        await Assert.That(new AddNodeCommand(GuardLibrary.Guarded).Payload).IsNull();
+        await Assert.That(new AddNodeCommand(StateNodes.Transition).Payload).IsNull();
     }
 
     [Test]

@@ -94,6 +94,56 @@ public sealed class SignalType(StableId id, string displayName) : ITypeIdentity
     public string DisplayName { get; } = displayName;
 }
 
+/// <summary>The value kinds an annotation can hold; a closed, format-neutral set.</summary>
+public enum AnnotationKind
+{
+    /// <summary>A registered signal identity (<see cref="StableId"/>), resolved through renames on load.</summary>
+    Signal,
+
+    /// <summary>A 32-bit integer.</summary>
+    Integer,
+
+    /// <summary>A double-precision number.</summary>
+    Number,
+
+    /// <summary>A boolean.</summary>
+    Boolean,
+
+    /// <summary>A string.</summary>
+    Text,
+}
+
+/// <summary>
+/// A registered kind of node metadata that the semantics owning it consume when compiling, such as a transition's
+/// trigger or priority. Annotations are never evaluation inputs and never a substitute for a payload or a port: a
+/// domain that needs evaluation data declares it as such.
+/// </summary>
+/// <param name="id">Persistent identity.</param>
+/// <param name="displayName">Human-readable name.</param>
+/// <param name="kind">The value kind.</param>
+public sealed class AnnotationType(StableId id, string displayName, AnnotationKind kind) : ITypeIdentity
+{
+    /// <inheritdoc />
+    public StableId Id { get; } = id;
+
+    /// <inheritdoc />
+    public string DisplayName { get; } = displayName;
+
+    /// <summary>The value kind.</summary>
+    public AnnotationKind Kind { get; } = kind;
+
+    /// <summary>Whether a value has this annotation's kind.</summary>
+    public bool Accepts(object? value) => (Kind, value) switch
+    {
+        (AnnotationKind.Signal, StableId) => true,
+        (AnnotationKind.Integer, int) => true,
+        (AnnotationKind.Number, double) => true,
+        (AnnotationKind.Boolean, bool) => true,
+        (AnnotationKind.Text, string) => true,
+        _ => false,
+    };
+}
+
 /// <summary>Upgrades saved nodes of one type from one payload version to the next.</summary>
 /// <param name="NodeTypeId">Current identity of the node type.</param>
 /// <param name="FromVersion">The version this step reads; it produces <c>FromVersion + 1</c>.</param>
@@ -123,6 +173,9 @@ public sealed class GraphTypeRegistry
 
     /// <summary>Registered signals, such as state-machine triggers.</summary>
     public IdentityRegistry<SignalType> Signals { get; } = new();
+
+    /// <summary>Registered node annotation types, such as a transition's trigger and priority.</summary>
+    public IdentityRegistry<AnnotationType> Annotations { get; } = new();
 
     /// <summary>Host-provided functions graphs may call.</summary>
     public IdentityRegistry<HostFunction> HostFunctions { get; } = new();

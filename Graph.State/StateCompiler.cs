@@ -76,7 +76,7 @@ static class StateCompiler
             var memory = behavior.MemorySize > 0 ? layout.AddArray<long>((behavior.MemorySize + 7) / 8).Offset : 0;
             var firstTransition = transitions.Count;
             var outgoing = links.Where(link => link.From == s)
-                .OrderByDescending(link => semantics.TransitionBehavior(link.Node).Priority(link.Node))
+                .OrderByDescending(static link => PriorityOf(link.Node))
                 .ThenBy(static link => link.Node.Id);
             transitions.AddRange(outgoing.Select(link =>
                 Transition(semantics, signals, link, triggers, data, dataPorts)));
@@ -95,12 +95,16 @@ static class StateCompiler
         IDataPlane? data,
         List<int> dataPorts)
     {
-        var trigger = link.Node.Payload is TransitionPayload { Trigger: { } id }
+        var trigger = link.Node.Annotations.TryGetValue(StateNodes.Trigger.Id, out var value) && value is StableId id
             ? triggers[signals.Canonicalize(id)]
             : -1;
         var ports = AddPorts(link.Node, data, dataPorts);
         return new(link.Node, semantics.TransitionBehavior(link.Node), ports, link.To, trigger);
     }
+
+    /// <summary>The transition's priority annotation, or 0; read here so evaluators never see annotations.</summary>
+    static int PriorityOf(GraphNode node) =>
+        node.Annotations.TryGetValue(StateNodes.Priority.Id, out var value) && value is int priority ? priority : 0;
 
     readonly record struct Link(int From, GraphNode Node, int To);
 

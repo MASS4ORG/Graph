@@ -322,6 +322,8 @@ public class GraphEditorTests
             "Remove node",
         ]);
         await Assert.That(new AddNodeCommand(Add).Description).IsEqualTo("Add Add");
+        await Assert.That(new SetAnnotationCommand(constant.NodeId, Id(999), 1).Description)
+            .IsEqualTo("Edit annotation");
     }
 
     [Test]

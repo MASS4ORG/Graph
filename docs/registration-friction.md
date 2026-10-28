@@ -122,16 +122,28 @@ The renderer must take an `InterpretedGraph` to read the output frame through `D
 
 Requirement (core): typed reads of declared outputs on `ICompiledGraph`, together with R8.
 
+## From the annotations change (R9)
+
+### R20 — Domain transition types register their migration separately
+
+`GuardLibrary.Guarded` is created with `StateNodes.CreateGuardedTransition` at version 2, but its saved version 1 documents only migrate if the domain also calls `StateNodes.AddTransitionMigration(registry, Guarded.Id)`. Forgetting it loads old assets with `MigrationUnavailable` and preserved payloads, not lifted triggers.
+
+Requirement: the generator emits the migration registration for every transition type built from the State helpers, with the type.
+
+### Guard 4 note
+
+No domain stashed semantics in annotations in this change: the only annotation types are State's trigger and priority, both consumed by the State compiler. `AfterPayload` stays a payload because its seconds are read by the behavior at evaluation time.
+
 ## Status after the core batch
 
 - Resolved in the core: R6 (`NodeType.DefaultPayload`), R8 and R19 (output-scope variables defined by `DataflowNodes.Output`, typed `ReadOutput`/`ReadOutputReference` on `ICompiledGraph`; the samples' renderers now take any backend), R11's split registry (triggers are `SignalType`s in `GraphTypeRegistry.Signals`), R14's boxing (typed `ICompiledGraph.SetVariable<T>`).
 - Resolved in the harness: R15 (`DifferentialOptions.Comparers`; `Frame` no longer overrides equality), R17 (behaviors declare `RequiredFeatures`, backends call `EvaluationContext.Require`, nodes use `Get<T>`; the samples' silent fallbacks are gone and missing features throw `MissingFeatureException`).
-- Pending an owner decision because it changes the serialized format: R9 (trigger and priority as semantic node metadata instead of payload content).
+- Resolved after the owner decision on the serialized format: R9. Trigger and priority are `StateNodes.Trigger` and `StateNodes.Priority` annotations, registered identities validated by State (MG3007 on non-transitions, MG3003 for unknown signals) and consumed when the machine compiles. The machine gates every transition on its trigger before its behavior runs, so `After` takes a trigger like any other transition. Schema 2 stores annotations; State's version 1 → 2 migration lifts old transition payloads, with an old-format fixture in the State tests.
 - Still generator scope: R1–R5, R7, R10, R11's rename emission, R12, R13, R14's typed handles, R16, R18.
 
 ## Summary for #11
 
-- Generator scope: R1–R7, R10–R14, R16–R18.
-- Core changes the generator depends on: R8 and R19 (declared outputs with typed reads), R9 (transition payload contract), R6 (default payloads on `NodeType`).
-- Harness: R15 (comparers for object values); R17 needs a home for required context features.
+- Generator scope: R1–R7, R10–R14, R16–R18, R20.
+- Core changes the generator depends on, all landed: R8 and R19 (declared outputs with typed reads), R9 (annotations), R6 (default payloads on `NodeType`).
+- Harness, landed: R15 (comparers for object values) and R17 (required context features).
 - Acceptance: for each sample, the generated registration equals the hand-written one (identities, port keys, rename entries, value and payload serialization) and the differential harness reports no divergence between documents built with either.

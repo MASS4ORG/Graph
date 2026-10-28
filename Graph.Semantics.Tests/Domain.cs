@@ -100,6 +100,7 @@ static class Domain
         }
         registry.Signals.Register(Go);
         registry.Signals.Register(Stop);
+        StateNodes.AddTransitionMigration(registry, Guarded.Id);
         return registry;
     }
 
@@ -157,6 +158,17 @@ static class Domain
         return command;
     }
 
+    public static AddNodeCommand AddTransition(
+        this GraphEditor editor,
+        NodeType type,
+        StableId? trigger = null,
+        int priority = 0)
+    {
+        var command = new AddNodeCommand(type) { Annotations = StateNodes.Annotations(trigger, priority) };
+        Require(editor.Execute(command));
+        return command;
+    }
+
     public static ElementId Port(this AddNodeCommand node, int index) => node.PortId(node.Type.Ports[index].Key);
 
     public static CommandResult Link(
@@ -193,8 +205,8 @@ static class Domain
         var entry = editor.AddNode(StateNodes.Entry);
         var idle = editor.AddNode(StateNodes.State);
         var walk = editor.AddNode(Walk);
-        var start = editor.AddNode(Guarded, new TransitionPayload());
-        var stop = editor.AddNode(StateNodes.Transition, new TransitionPayload(Stop.Id));
+        var start = editor.AddTransition(Guarded);
+        var stop = editor.AddTransition(StateNodes.Transition, Stop.Id);
         var speed = editor.AddNode(Speed);
         var threshold = editor.AddNode(Constant, new ConstantPayload(0.5));
         var faster = editor.AddNode(GreaterThan);

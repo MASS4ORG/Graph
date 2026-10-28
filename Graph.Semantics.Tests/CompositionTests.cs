@@ -83,8 +83,8 @@ public class CompositionTests
         var entry = editor.AddNode(StateNodes.Entry);
         var a = editor.AddNode(StateNodes.State);
         var b = editor.AddNode(StateNodes.State);
-        var there = editor.AddNode(StateNodes.Transition, new TransitionPayload(Go.Id));
-        var back = editor.AddNode(StateNodes.Transition, new TransitionPayload(Stop.Id));
+        var there = editor.AddTransition(StateNodes.Transition, Go.Id);
+        var back = editor.AddTransition(StateNodes.Transition, Stop.Id);
         var x = editor.AddNode(Scale);
         var y = editor.AddNode(Scale);
         editor.Wire(entry, 0, a, 0);

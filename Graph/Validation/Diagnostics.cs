@@ -85,6 +85,12 @@ public static class GraphDiagnosticIds
     /// <summary>A node cannot be created because its type is not registered.</summary>
     public const string NodeTypeNotRegistered = "MG0006";
 
+    /// <summary>An annotation cannot be set because its type is not registered.</summary>
+    public const string AnnotationTypeNotRegistered = "MG0007";
+
+    /// <summary>An annotation value does not have its type's kind.</summary>
+    public const string AnnotationValueMismatch = "MG0008";
+
     /// <summary>A node's type is not registered; the node is preserved unchanged.</summary>
     public const string UnknownNodeType = "MG0101";
 
