@@ -8,6 +8,8 @@ Register each port type's CLR storage with `DataflowSemantics.AddValueType<T>` f
 
 Compile with `Compile(document, layout, diagnostics)` using a shared `InstanceLayoutBuilder`. The resulting `DataflowProgram` pulls dependencies when a value is read. Non-volatile subgraphs stay cached per instance; volatile nodes evaluate once per evaluation epoch. Variable writes invalidate the instance cache. Declared `RequiredFeatures` flow into the compiled graph and must be present in the evaluation context.
 
+Behaviors see storage only through `DataflowContext`, which wraps a `DataflowFrame`. `DataflowProgram` is the interpreter's frame; [generated backends](../Graph.Generator/README.md#compiled-assets) supply their own, so one behavior runs unchanged on every backend.
+
 Control and state behaviors may publish data through `IDataPlane.Write` only to outputs that dataflow does not compute. Such outputs are volatile roots; every publish advances the epoch. Publishing to an input or a dataflow-computed output throws.
 
 ## Variables and declared outputs
@@ -16,4 +18,4 @@ Call `DataflowNodes.Register(registry)` for the built-in variable-read and outpu
 
 Rules and compilation reject data cycles, unresolved/conflicting types, unknown variables, invalid output roles and duplicate output definitions. Diagnostic codes are MG1001–MG1011. Supply `Conversions` and `Rules` to `GraphEditor` for edit-time validation.
 
-See the [shader](../Graph.Samples.Shader/README.md) and [compositor](../Graph.Samples.Compositor/README.md) samples and [semantics tests](../Graph.Semantics.Tests/README.md).
+See the [shader](../Samples/Graph.Samples.Shader/README.md) and [compositor](../Samples/Graph.Samples.Compositor/README.md) samples and [semantics tests](../Tests/Graph.Semantics.Tests/README.md).

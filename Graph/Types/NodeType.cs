@@ -180,6 +180,9 @@ public sealed class GraphTypeRegistry
     /// <summary>Host-provided functions graphs may call.</summary>
     public IdentityRegistry<HostFunction> HostFunctions { get; } = new();
 
+    /// <summary>Registered payload migration steps, in no particular order.</summary>
+    public IEnumerable<NodeMigration> Migrations => migrations.Values;
+
     /// <summary>Adds a module's registrations.</summary>
     public GraphTypeRegistry Add(IGraphTypeModule module)
     {

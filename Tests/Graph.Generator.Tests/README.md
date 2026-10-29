@@ -10,4 +10,4 @@ Run from the repository root:
 dotnet test --project Graph.Generator.Tests
 ```
 
-Compiler fixtures complement [runtime sample equivalence](../Graph.Samples.Tests/README.md) and the [NativeAOT smoke app](../Graph.AotSmoke/README.md). See the [generator README](../Graph.Generator/README.md) for declarations and generated APIs.
+Compiler fixtures complement [runtime sample equivalence](../Graph.Samples.Tests/README.md) and the [NativeAOT smoke app](../../Samples/Graph.AotSmoke/README.md). See the [generator README](../../Graph.Generator/README.md) for declarations and generated APIs.

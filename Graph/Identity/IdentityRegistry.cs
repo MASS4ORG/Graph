@@ -26,6 +26,9 @@ public sealed class IdentityRegistry<T> where T : class, ITypeIdentity
     /// <summary>Number of registered entries.</summary>
     public int Count => entries.Count;
 
+    /// <summary>Rename entries as previous → next identity, in no particular order; chains are not collapsed.</summary>
+    public IEnumerable<KeyValuePair<StableId, StableId>> Renames => renames.AsReadOnly();
+
     /// <summary>Registers an entry under its own identity.</summary>
     /// <exception cref="ArgumentException">The identity is empty, registered, or recorded as renamed.</exception>
     public void Register(T entry)

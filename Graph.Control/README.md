@@ -8,4 +8,4 @@ Execution is depth-first in request order; fan-out follows target node identity 
 
 Supply `Rules` to `GraphEditor` so execution ports without a bound behavior are diagnosed as MG2001. Compile with the document, shared instance layout and optional data plane. Control owns only execution-flow ports, allowing dataflow and state edges to coexist in the same document.
 
-See [semantics tests](../Graph.Semantics.Tests/README.md) for ordered branches, fan-out, memory, limits and mixed state/data/control graphs.
+See [semantics tests](../Tests/Graph.Semantics.Tests/README.md) for ordered branches, fan-out, memory, limits and mixed state/data/control graphs.

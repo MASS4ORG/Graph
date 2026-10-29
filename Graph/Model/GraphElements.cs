@@ -177,6 +177,15 @@ public enum GraphChangeKind
 
     /// <summary>Non-semantic view metadata changed.</summary>
     LayoutChanged,
+
+    /// <summary>A group was added.</summary>
+    GroupAdded,
+
+    /// <summary>A group was removed.</summary>
+    GroupRemoved,
+
+    /// <summary>A group's title, parent or direct node members changed.</summary>
+    GroupChanged,
 }
 
 /// <summary>One element-level change, reported to listeners and to scoped validation rules.</summary>

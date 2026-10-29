@@ -1,7 +1,7 @@
 namespace MASS4.Graph;
 
 /// <summary>
-/// A graph asset: nodes, ports, edges, blackboard variables and view layout. It holds no instance state, so any number
+/// A graph asset: nodes, ports, edges, blackboard variables, groups and view layout. It holds no instance state, so any number
 /// of runtime instances can share one document. All mutations go through <see cref="GraphEditor"/> commands.
 /// </summary>
 public sealed class GraphDocument
@@ -14,6 +14,9 @@ public sealed class GraphDocument
     readonly Dictionary<ElementId, GraphVariable> variables = [];
     readonly Dictionary<ElementId, List<GraphEdge>> edgesByPort = [];
     readonly Dictionary<ElementId, GraphPoint> positions = [];
+    readonly Dictionary<ElementId, GraphGroup> groups = [];
+    readonly Dictionary<ElementId, ElementId> nodeGroups = [];
+    readonly HashSet<ElementId> collapsed = [];
     List<GraphChange>? recording;
 
     /// <summary>Creates an empty document.</summary>
@@ -46,6 +49,15 @@ public sealed class GraphDocument
     /// <summary>Node positions of the default view; non-semantic metadata.</summary>
     public IReadOnlyDictionary<ElementId, GraphPoint> Positions => positions;
 
+    /// <summary>All groups, in no particular order; authored content that never affects validation or evaluation.</summary>
+    public IReadOnlyCollection<GraphGroup> Groups => groups.Values;
+
+    /// <summary>
+    /// Groups drawn collapsed in the default view. Collapse is view state like <see cref="Positions"/>: it is saved
+    /// with the layout, can be omitted with it, and never changes the groups themselves.
+    /// </summary>
+    public IReadOnlySet<ElementId> CollapsedGroups => collapsed;
+
     /// <summary>Saved top-level properties this version does not understand, written back verbatim.</summary>
     public IReadOnlyDictionary<string, JsonElement> Extensions { get; internal set; } = GraphNode.EmptyExtensions;
 
@@ -68,6 +80,47 @@ public sealed class GraphDocument
     /// <summary>Finds an edge.</summary>
     public bool TryGetEdge(ElementId id, [NotNullWhen(true)] out GraphEdge? edge) => edges.TryGetValue(id, out edge);
 
+    /// <summary>Finds a group.</summary>
+    public bool TryGetGroup(ElementId id, [NotNullWhen(true)] out GraphGroup? group) => groups.TryGetValue(id, out group);
+
+    /// <summary>The group a node is directly in, or null when it is in none.</summary>
+    public ElementId? GroupOf(ElementId nodeId) => nodeGroups.TryGetValue(nodeId, out var group) ? group : null;
+
+    /// <summary>Groups whose parent is <paramref name="parent"/>; null lists the top-level groups.</summary>
+    public IEnumerable<GraphGroup> ChildGroups(ElementId? parent) => groups.Values.Where(group => group.Parent == parent);
+
+    /// <summary>
+    /// The outermost collapsed group enclosing a node or group, which a view draws in its place; null when it is
+    /// visible. A collapsed group is itself visible unless one of its ancestors is collapsed.
+    /// </summary>
+    public ElementId? CollapsedContainer(ElementId element)
+    {
+        ElementId? outermost = null;
+        var current = groups.TryGetValue(element, out var group) ? group.Parent : GroupOf(element);
+        while (current is { } id && groups.TryGetValue(id, out var ancestor))
+        {
+            if (collapsed.Contains(id))
+            {
+                outermost = id;
+            }
+            current = ancestor.Parent;
+        }
+        return outermost;
+    }
+
+    /// <summary>Whether <paramref name="ancestor"/> encloses <paramref name="group"/> or is the group itself.</summary>
+    public bool IsWithin(ElementId group, ElementId ancestor)
+    {
+        for (ElementId? current = group; current is { } id; current = groups.TryGetValue(id, out var g) ? g.Parent : null)
+        {
+            if (id == ancestor)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>Finds a blackboard variable.</summary>
     public bool TryGetVariable(ElementId id, [NotNullWhen(true)] out GraphVariable? variable) =>
         variables.TryGetValue(id, out variable);
@@ -78,7 +131,8 @@ public sealed class GraphDocument
 
     /// <summary>Whether any element of any kind uses this identity.</summary>
     public bool ContainsElement(ElementId id) =>
-        nodes.ContainsKey(id) || ports.ContainsKey(id) || edges.ContainsKey(id) || variables.ContainsKey(id);
+        nodes.ContainsKey(id) || ports.ContainsKey(id) || edges.ContainsKey(id) || variables.ContainsKey(id) ||
+        groups.ContainsKey(id);
 
     /// <summary>Resolves the node type of a node, following renames; false for preserved unknown types.</summary>
     public bool TryGetNodeType(GraphNode node, [NotNullWhen(true)] out NodeType? type) =>
@@ -119,6 +173,7 @@ public sealed class GraphDocument
             edgesByPort.Remove(port.Id);
         }
         nodes.Remove(node.Id);
+        SetNodeGroupCore(node.Id, null);
         if (positions.Remove(node.Id))
         {
             Record(GraphChangeKind.LayoutChanged, node.Id);
@@ -178,6 +233,55 @@ public sealed class GraphDocument
             positions.Remove(nodeId);
         }
         Record(GraphChangeKind.LayoutChanged, nodeId);
+    }
+
+    internal void AddGroupCore(GraphGroup group)
+    {
+        groups.Add(group.Id, group);
+        Record(GraphChangeKind.GroupAdded, group.Id);
+    }
+
+    /// <summary>Removes an empty group; callers first move its nodes and child groups elsewhere.</summary>
+    internal void RemoveGroupCore(GraphGroup group)
+    {
+        groups.Remove(group.Id);
+        SetCollapsedCore(group.Id, false);
+        Record(GraphChangeKind.GroupRemoved, group.Id);
+    }
+
+    internal void SetGroupTitleCore(GraphGroup group, string title)
+    {
+        group.Title = title;
+        Record(GraphChangeKind.GroupChanged, group.Id);
+    }
+
+    internal void SetGroupParentCore(GraphGroup group, ElementId? parent)
+    {
+        group.Parent = parent;
+        Record(GraphChangeKind.GroupChanged, group.Id);
+    }
+
+    internal void SetNodeGroupCore(ElementId nodeId, ElementId? groupId)
+    {
+        if (nodeGroups.Remove(nodeId, out var previous))
+        {
+            groups[previous].RemoveNode(nodeId);
+            Record(GraphChangeKind.GroupChanged, previous);
+        }
+        if (groupId is { } id)
+        {
+            groups[id].AddNode(nodeId);
+            nodeGroups[nodeId] = id;
+            Record(GraphChangeKind.GroupChanged, id);
+        }
+    }
+
+    internal void SetCollapsedCore(ElementId groupId, bool value)
+    {
+        if (value ? collapsed.Add(groupId) : collapsed.Remove(groupId))
+        {
+            Record(GraphChangeKind.LayoutChanged, groupId);
+        }
     }
 
     void Attach(ElementId portId, GraphEdge edge)

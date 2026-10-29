@@ -162,6 +162,30 @@ public class AnnotationTests
     }
 
     [Test]
+    public async Task EditsStoreRenamedSignalsUnderTheirCurrentIdentity()
+    {
+        var registry = Registry(renamed: true);
+        var ping = new SignalType(Id(432), "Ping");
+        registry.Annotations.Register(Cue);
+        registry.Signals.Register(ping);
+        registry.Signals.AddRename(Ping.Id, ping.Id);
+        var editor = new GraphEditor(new GraphDocument(registry, Id(900)));
+        var added = new AddNodeCommand(Constant, new ConstantPayload(1))
+        {
+            Annotations = new Dictionary<StableId, object> { [Cue.Id] = Ping.Id },
+        };
+        var other = editor.AddNode(Constant, new ConstantPayload(2));
+
+        await Assert.That(editor.Execute(added).Succeeded).IsTrue();
+        await Assert.That(editor.Execute(new SetAnnotationCommand(other.NodeId, Cue.Id, Ping.Id)).Succeeded).IsTrue();
+        await Assert.That(editor.Document.GetNode(added.NodeId).Annotations[Cue.Id]).IsEqualTo(ping.Id);
+        await Assert.That(editor.Document.GetNode(other.NodeId).Annotations[Cue.Id]).IsEqualTo(ping.Id);
+        await Assert.That(GraphJson.Serialize(editor.Document)).DoesNotContain(Ping.Id.ToString());
+        editor.Undo();
+        await Assert.That(editor.Document.GetNode(other.NodeId).Annotations.ContainsKey(Cue.Id)).IsFalse();
+    }
+
+    [Test]
     [Arguments("""[1]""")]
     [Arguments("""{"not-an-id":1}""")]
     public async Task MalformedAnnotationsDropTheNode(string annotations)

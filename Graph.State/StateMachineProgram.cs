@@ -5,7 +5,7 @@ namespace MASS4.Graph.State;
 /// order, takes at most one, updates the current state and then clears raised triggers. One program serves every
 /// instance; ticking different instances concurrently is safe.
 /// </summary>
-public sealed class StateMachineProgram
+public sealed class StateMachineProgram : StateFrame
 {
     readonly IdentityRegistry<SignalType> signals;
     readonly StateEntry[] states;
@@ -137,9 +137,53 @@ public sealed class StateMachineProgram
     /// <summary>Seconds since an instance entered its current state.</summary>
     public double TimeInState(InstanceBuffer instances, InstanceHandle instance) => instances.Get(instance, time);
 
-    internal StateEntry StateAt(int state) => states[state];
+    /// <inheritdoc />
+    protected internal override double ElapsedInState(InstanceBuffer instances, InstanceHandle instance) =>
+        TimeInState(instances, instance);
 
-    internal TransitionEntry TransitionAt(int transition) => transitions[transition];
+    /// <inheritdoc />
+    protected internal override GraphNode StateNode(int state) => states[state].Node;
+
+    /// <inheritdoc />
+    protected internal override GraphNode TransitionNode(int transition) => transitions[transition].Node;
+
+    /// <inheritdoc />
+    protected internal override Span<byte> Memory(InstanceBuffer instances, InstanceHandle instance, int state) =>
+        instances.GetRecord(instance).Slice(states[state].MemoryOffset, states[state].MemorySize);
+
+    /// <inheritdoc />
+    protected internal override T ReadState<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int state,
+        int port) =>
+        Data(states[state].FirstPort + port, out var index).Read<T>(context, instances, instance, index);
+
+    /// <inheritdoc />
+    protected internal override void WriteState<T>(
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int state,
+        int port,
+        T value) =>
+        Data(states[state].FirstPort + port, out var index).Write(instances, instance, index, value);
+
+    /// <inheritdoc />
+    protected internal override T ReadTransition<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int transition,
+        int port) =>
+        Data(transitions[transition].FirstPort + port, out var index).Read<T>(context, instances, instance, index);
+
+    /// <inheritdoc />
+    protected internal override bool HasTrigger(int transition) => transitions[transition].Trigger >= 0;
+
+    /// <inheritdoc />
+    protected internal override bool IsRaised(InstanceBuffer instances, InstanceHandle instance, StableId trigger) =>
+        TryResolveTrigger(trigger, out var handle) && IsRaised(instances, instance, handle.Index);
 
     internal bool IsRaised(InstanceBuffer instances, InstanceHandle instance, int trigger) =>
         instances.GetSpan(instance, raised)[trigger] != 0;

@@ -156,6 +156,20 @@ public interface ICompiledGraph
         ICollection<GraphObservation> observations);
 }
 
+/// <summary>Typed host operations over <see cref="ICompiledGraph"/>.</summary>
+public static class CompiledGraphExtensions
+{
+    /// <summary>
+    /// Raises a registered signal by its declaration rather than a bare identity, so a reference to a renamed or
+    /// removed signal fails to compile instead of missing at run time.
+    /// </summary>
+    public static bool Raise(this ICompiledGraph graph, InstanceBuffer instances, InstanceHandle instance, SignalType signal)
+    {
+        ArgumentNullException.ThrowIfNull(signal);
+        return graph.Raise(instances, instance, signal.Id);
+    }
+}
+
 /// <summary>Outcome of compiling a graph.</summary>
 /// <param name="Graph">The artifact, or null when compilation failed.</param>
 /// <param name="Diagnostics">Findings naming the affected elements.</param>

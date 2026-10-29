@@ -42,8 +42,14 @@ jobs:
 
       - name: Verify generated registration with NativeAOT
         run: |
-          dotnet publish Graph.AotSmoke/Graph.AotSmoke.csproj -c Release -f net10.0 -r linux-x64 -p:PublishAot=true -p:NoLocalPackages=true -m:4 -nodeReuse:false -o artifacts/aot-smoke
+          dotnet publish Test/Graph.AotSmoke/Graph.AotSmoke.csproj -c Release -f net10.0 -r linux-x64 -p:PublishAot=true -p:NoLocalPackages=true -m:4 -nodeReuse:false -o artifacts/aot-smoke
           ./artifacts/aot-smoke/Graph.AotSmoke
+
+      - name: Verify the analyzer package in a core-only user assembly
+        run: |
+          VERSION=0.0.0-ci.${{ github.run_id }}.${{ github.run_attempt }}
+          dotnet pack Graph.Generator/Graph.Generator.csproj -c Release -p:Version=$VERSION -o artifacts/packages
+          dotnet run --project Samples/Graph.Samples.CustomNodes -c Release -f net10.0 -p:UseAnalyzerPackage=true -p:AnalyzerPackageVersion=$VERSION
 
       - name: Upload coverage report
         if: always()

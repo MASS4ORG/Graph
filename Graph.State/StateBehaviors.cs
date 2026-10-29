@@ -85,20 +85,80 @@ sealed class EmptyState : IStateNode
     public static EmptyState Instance { get; } = new();
 }
 
+/// <summary>
+/// Storage and wiring behind <see cref="StateContext"/> and <see cref="TransitionContext"/>. The interpreter's
+/// <see cref="StateMachineProgram"/> is one implementation; generated backends supply their own, so state and
+/// transition behaviors run unchanged on every backend. States and transitions are addressed by backend index and
+/// ports by declaration index.
+/// </summary>
+public abstract class StateFrame
+{
+    /// <summary>The state node at an index.</summary>
+    protected internal abstract GraphNode StateNode(int state);
+
+    /// <summary>The transition node at an index.</summary>
+    protected internal abstract GraphNode TransitionNode(int transition);
+
+    /// <summary>Seconds since an instance entered its current state.</summary>
+    protected internal abstract double ElapsedInState(InstanceBuffer instances, InstanceHandle instance);
+
+    /// <summary>The per-instance memory a state declared, exactly as long as declared.</summary>
+    protected internal abstract Span<byte> Memory(InstanceBuffer instances, InstanceHandle instance, int state);
+
+    /// <summary>Reads a state's data port through the data plane.</summary>
+    protected internal abstract T ReadState<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int state,
+        int port)
+        where T : unmanaged;
+
+    /// <summary>Publishes a value on a state's data output through the data plane.</summary>
+    protected internal abstract void WriteState<T>(
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int state,
+        int port,
+        T value)
+        where T : unmanaged;
+
+    /// <summary>Reads a transition's data port through the data plane.</summary>
+    protected internal abstract T ReadTransition<T>(
+        EvaluationContext context,
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int transition,
+        int port)
+        where T : unmanaged;
+
+    /// <summary>Whether a transition has a trigger annotation.</summary>
+    protected internal abstract bool HasTrigger(int transition);
+
+    /// <summary>Whether a trigger was raised this tick; unknown triggers are never raised.</summary>
+    protected internal abstract bool IsRaised(InstanceBuffer instances, InstanceHandle instance, StableId trigger);
+}
+
 /// <summary>What a state sees while it runs; ports are addressed by their index in declaration order.</summary>
 public readonly ref struct StateContext
 {
-    readonly StateMachineProgram program;
+    readonly StateFrame frame;
     readonly int state;
 
-    internal StateContext(
-        StateMachineProgram program,
+    /// <summary>Creates the context of one state callback; backends call this, behaviors receive it.</summary>
+    /// <param name="frame">The backend's storage and wiring.</param>
+    /// <param name="evaluation">Ambient services.</param>
+    /// <param name="instances">The instance buffer being ticked.</param>
+    /// <param name="instance">The instance being ticked.</param>
+    /// <param name="state">The state's index in <paramref name="frame"/>.</param>
+    public StateContext(
+        StateFrame frame,
         EvaluationContext evaluation,
         InstanceBuffer instances,
         InstanceHandle instance,
         int state)
     {
-        this.program = program;
+        this.frame = frame;
         this.state = state;
         Evaluation = evaluation;
         Instances = instances;
@@ -115,13 +175,13 @@ public readonly ref struct StateContext
     public InstanceHandle Instance { get; }
 
     /// <summary>The state node.</summary>
-    public GraphNode Node => program.StateAt(state).Node;
+    public GraphNode Node => frame.StateNode(state);
 
     /// <summary>The state payload.</summary>
     public object? Payload => Node.Payload;
 
     /// <summary>Seconds since the machine entered this state.</summary>
-    public double TimeInState => program.TimeInState(Instances, Instance);
+    public double TimeInState => frame.ElapsedInState(Instances, Instance);
 
     /// <summary>Index of the port declared with <paramref name="key"/>.</summary>
     /// <exception cref="KeyNotFoundException">The node has no such port.</exception>
@@ -129,45 +189,46 @@ public readonly ref struct StateContext
 
     /// <summary>Reads a data input through the data plane.</summary>
     /// <exception cref="InvalidOperationException">The port carries no data or there is no data plane.</exception>
-    public T Read<T>(int port) where T : unmanaged =>
-        program.Data(program.StateAt(state).FirstPort + port, out var index)
-            .Read<T>(Evaluation, Instances, Instance, index);
+    public T Read<T>(int port) where T : unmanaged => frame.ReadState<T>(Evaluation, Instances, Instance, state, port);
 
     /// <summary>Writes a data output through the data plane; values depending on it recompute.</summary>
     /// <exception cref="InvalidOperationException">The port carries no data or there is no data plane.</exception>
-    public void Write<T>(int port, T value) where T : unmanaged =>
-        program.Data(program.StateAt(state).FirstPort + port, out var index)
-            .Write(Instances, Instance, index, value);
+    public void Write<T>(int port, T value) where T : unmanaged => frame.WriteState(Instances, Instance, state, port, value);
 
     /// <summary>Returns this state's per-instance memory viewed as <typeparamref name="T"/>.</summary>
     /// <exception cref="InvalidOperationException">The state type declared less memory than needed.</exception>
     public ref T Memory<T>() where T : unmanaged
     {
-        var entry = program.StateAt(state);
-        if (Unsafe.SizeOf<T>() > entry.MemorySize)
+        var bytes = frame.Memory(Instances, Instance, state);
+        if (Unsafe.SizeOf<T>() > bytes.Length)
         {
             throw new InvalidOperationException(
-                $"'{Node.TypeId}' declares {entry.MemorySize} bytes of memory, not enough for {typeof(T).Name}.");
+                $"'{Node.TypeId}' declares {bytes.Length} bytes of memory, not enough for {typeof(T).Name}.");
         }
-        var bytes = Instances.GetRecord(Instance).Slice(entry.MemoryOffset, Unsafe.SizeOf<T>());
-        return ref MemoryMarshal.AsRef<T>(bytes);
+        return ref MemoryMarshal.AsRef<T>(bytes[..Unsafe.SizeOf<T>()]);
     }
 }
 
 /// <summary>What a transition sees while it decides; ports are addressed by their index in declaration order.</summary>
 public readonly ref struct TransitionContext
 {
-    readonly StateMachineProgram program;
+    readonly StateFrame frame;
     readonly int transition;
 
-    internal TransitionContext(
-        StateMachineProgram program,
+    /// <summary>Creates the context of one transition check; backends call this, behaviors receive it.</summary>
+    /// <param name="frame">The backend's storage and wiring.</param>
+    /// <param name="evaluation">Ambient services.</param>
+    /// <param name="instances">The instance buffer being ticked.</param>
+    /// <param name="instance">The instance being ticked.</param>
+    /// <param name="transition">The transition's index in <paramref name="frame"/>.</param>
+    public TransitionContext(
+        StateFrame frame,
         EvaluationContext evaluation,
         InstanceBuffer instances,
         InstanceHandle instance,
         int transition)
     {
-        this.program = program;
+        this.frame = frame;
         this.transition = transition;
         Evaluation = evaluation;
         Instances = instances;
@@ -184,20 +245,19 @@ public readonly ref struct TransitionContext
     public InstanceHandle Instance { get; }
 
     /// <summary>The transition node.</summary>
-    public GraphNode Node => program.TransitionAt(transition).Node;
+    public GraphNode Node => frame.TransitionNode(transition);
 
     /// <summary>The transition payload.</summary>
     public object? Payload => Node.Payload;
 
     /// <summary>Seconds since the machine entered the source state.</summary>
-    public double TimeInState => program.TimeInState(Instances, Instance);
+    public double TimeInState => frame.ElapsedInState(Instances, Instance);
 
     /// <summary>Whether the transition has a trigger annotation.</summary>
-    public bool HasTrigger => program.TransitionAt(transition).Trigger >= 0;
+    public bool HasTrigger => frame.HasTrigger(transition);
 
     /// <summary>Whether a trigger was raised this tick; unknown triggers are never raised.</summary>
-    public bool IsRaised(StableId trigger) =>
-        program.TryResolveTrigger(trigger, out var handle) && program.IsRaised(Instances, Instance, handle.Index);
+    public bool IsRaised(StableId trigger) => frame.IsRaised(Instances, Instance, trigger);
 
     /// <summary>Index of the port declared with <paramref name="key"/>.</summary>
     /// <exception cref="KeyNotFoundException">The node has no such port.</exception>
@@ -206,6 +266,5 @@ public readonly ref struct TransitionContext
     /// <summary>Reads a data input through the data plane.</summary>
     /// <exception cref="InvalidOperationException">The port carries no data or there is no data plane.</exception>
     public T Read<T>(int port) where T : unmanaged =>
-        program.Data(program.TransitionAt(transition).FirstPort + port, out var index)
-            .Read<T>(Evaluation, Instances, Instance, index);
+        frame.ReadTransition<T>(Evaluation, Instances, Instance, transition, port);
 }

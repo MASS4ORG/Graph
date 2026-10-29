@@ -91,6 +91,12 @@ public static class GraphDiagnosticIds
     /// <summary>An annotation value does not have its type's kind.</summary>
     public const string AnnotationValueMismatch = "MG0008";
 
+    /// <summary>A group does not exist.</summary>
+    public const string GroupNotFound = "MG0009";
+
+    /// <summary>A group would enclose itself; groups form a forest.</summary>
+    public const string GroupCycle = "MG0010";
+
     /// <summary>A node's type is not registered; the node is preserved unchanged.</summary>
     public const string UnknownNodeType = "MG0101";
 

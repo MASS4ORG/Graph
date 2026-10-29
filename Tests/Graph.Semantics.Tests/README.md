@@ -12,4 +12,4 @@ Run from the repository root:
 dotnet test --project Graph.Semantics.Tests
 ```
 
-See the [Dataflow](../Graph.Dataflow/README.md), [Control](../Graph.Control/README.md) and [State](../Graph.State/README.md) READMEs for the public contracts; use the [repository test target](../README.md#build-and-test) for merged coverage.
+See the [Dataflow](../../Graph.Dataflow/README.md), [Control](../../Graph.Control/README.md) and [State](../../Graph.State/README.md) READMEs for the public contracts; use the [repository test target](../../README.md#build-and-test) for merged coverage.

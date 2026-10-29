@@ -53,6 +53,17 @@ public sealed class StateSemantics
         return this;
     }
 
+    /// <summary>Whether a node type is bound as a state-machine entry.</summary>
+    public bool IsEntry(StableId nodeTypeId) => entries.Contains(nodeTypeId);
+
+    /// <summary>Finds the state behavior bound to a node type.</summary>
+    public bool TryGetState(StableId nodeTypeId, [NotNullWhen(true)] out IStateNode? behavior) =>
+        states.TryGetValue(nodeTypeId, out behavior);
+
+    /// <summary>Finds the transition behavior bound to a node type.</summary>
+    public bool TryGetTransition(StableId nodeTypeId, [NotNullWhen(true)] out ITransitionNode? behavior) =>
+        transitions.TryGetValue(nodeTypeId, out behavior);
+
     /// <summary>
     /// Validates a document as one state machine and builds its per-instance program, reserving slots in
     /// <paramref name="layout"/>. Guards and state outputs resolve through <paramref name="data"/>.

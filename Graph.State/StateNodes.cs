@@ -97,6 +97,13 @@ public static class StateNodes
     }
 
     /// <summary>
+    /// Annotations for a new transition triggered by a declared signal. Passing the declaration rather than its
+    /// identity keeps trigger references compiler-checked across source renames.
+    /// </summary>
+    public static IReadOnlyDictionary<StableId, object> Annotations(SignalType? trigger, int priority = 0) =>
+        Annotations(trigger?.Id, priority);
+
+    /// <summary>
     /// Registers the state-flow port type, the built-in node types, the transition annotations and the built-in
     /// transition's version 1 → 2 migration.
     /// </summary>

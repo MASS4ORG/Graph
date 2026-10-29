@@ -6,10 +6,10 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);CS1591</NoWarn>
     </PropertyGroup>
-    
+
     <ItemGroup>
+        <ProjectReference Include="..\Graph.AotSmoke\Graph.AotSmoke.csproj" />
         <ProjectReference Include="..\..\Graph.Generator\Graph.Generator.csproj" />
-        <ProjectReference Include="..\..\Samples\Graph.AotSmoke\Graph.AotSmoke.csproj" />
         <ProjectReference Include="..\..\Samples\Graph.Samples.Compositor\Graph.Samples.Compositor.csproj" />
         <ProjectReference Include="..\..\Samples\Graph.Samples.Fsm\Graph.Samples.Fsm.csproj" />
         <ProjectReference Include="..\..\Samples\Graph.Samples.Shader\Graph.Samples.Shader.csproj" />

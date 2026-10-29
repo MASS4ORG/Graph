@@ -15,7 +15,7 @@ public static partial class Frames;
 
 /// <summary>Timeline feature declaration.</summary>
 [GraphNode("c0b0f000-0000-4000-8000-000000000201", "Time")]
-[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, "c0b0f000-0000-4000-8000-000000000001", typeof(double))]
+[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, typeof(Number))]
 [GraphBehavior(GraphBehaviorKind.Dataflow, typeof(Time), Method = nameof(Evaluate), Volatile = true, Features = new[] { typeof(Timeline) })]
 public static partial class Time
 {
@@ -24,7 +24,7 @@ public static partial class Time
 
 /// <summary>Scrolling ramp declaration with reusable frame output.</summary>
 [GraphNode("c0b0f000-0000-4000-8000-000000000202", "Ramp")]
-[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, "c0b0f000-0000-4000-8000-000000000002", typeof(Frame))]
+[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, typeof(Frames))]
 [GraphPayload(typeof(RampPayload), JsonContext = typeof(CompositorJson), DefaultFactory = nameof(Default))]
 [GraphBehavior(GraphBehaviorKind.Dataflow, typeof(Ramp), Method = nameof(Evaluate), Volatile = true, Features = new[] { typeof(Timeline), typeof(RenderSettings) })]
 public static partial class Ramp
@@ -46,7 +46,7 @@ public static partial class Ramp
 
 /// <summary>Pulsing frame declaration.</summary>
 [GraphNode("c0b0f000-0000-4000-8000-000000000203", "Pulse")]
-[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, "c0b0f000-0000-4000-8000-000000000002", typeof(Frame))]
+[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, typeof(Frames))]
 [GraphPayload(typeof(PulsePayload), JsonContext = typeof(CompositorJson), DefaultFactory = nameof(Default))]
 [GraphBehavior(GraphBehaviorKind.Dataflow, typeof(Pulse), Method = nameof(Evaluate), Volatile = true, Features = new[] { typeof(Timeline), typeof(RenderSettings) })]
 public static partial class Pulse
@@ -63,8 +63,8 @@ public static partial class Pulse
 
 /// <summary>Envelope declaration.</summary>
 [GraphNode("c0b0f000-0000-4000-8000-000000000204", "Envelope")]
-[GraphPort("Time", "c0b0f000-0000-4000-8000-000000000101", "time", PortDirection.Input, "c0b0f000-0000-4000-8000-000000000001", typeof(double))]
-[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, "c0b0f000-0000-4000-8000-000000000001", typeof(double))]
+[GraphPort("Time", "c0b0f000-0000-4000-8000-000000000101", "time", PortDirection.Input, typeof(Number))]
+[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, typeof(Number))]
 [GraphPayload(typeof(EnvelopePayload), JsonContext = typeof(CompositorJson), DefaultFactory = nameof(Default))]
 [GraphBehavior(GraphBehaviorKind.Dataflow, typeof(Envelope), Method = nameof(Evaluate))]
 public static partial class Envelope
@@ -76,10 +76,10 @@ public static partial class Envelope
 
 /// <summary>Frame blend declaration.</summary>
 [GraphNode("c0b0f000-0000-4000-8000-000000000205", "Over")]
-[GraphPort("Top", "c0b0f000-0000-4000-8000-000000000101", "top", PortDirection.Input, "c0b0f000-0000-4000-8000-000000000002", typeof(Frame))]
-[GraphPort("Bottom", "c0b0f000-0000-4000-8000-000000000102", "bottom", PortDirection.Input, "c0b0f000-0000-4000-8000-000000000002", typeof(Frame))]
-[GraphPort("Mix", "c0b0f000-0000-4000-8000-000000000103", "mix", PortDirection.Input, "c0b0f000-0000-4000-8000-000000000001", typeof(double))]
-[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, "c0b0f000-0000-4000-8000-000000000002", typeof(Frame))]
+[GraphPort("Top", "c0b0f000-0000-4000-8000-000000000101", "top", PortDirection.Input, typeof(Frames))]
+[GraphPort("Bottom", "c0b0f000-0000-4000-8000-000000000102", "bottom", PortDirection.Input, typeof(Frames))]
+[GraphPort("Mix", "c0b0f000-0000-4000-8000-000000000103", "mix", PortDirection.Input, typeof(Number))]
+[GraphPort("Out", "c0b0f000-0000-4000-8000-000000000100", "out", PortDirection.Output, typeof(Frames))]
 [GraphBehavior(GraphBehaviorKind.Dataflow, typeof(Over), Method = nameof(Evaluate), Features = new[] { typeof(RenderSettings) })]
 public static partial class Over
 {
@@ -98,6 +98,10 @@ public static partial class Over
     }
     static float Pixel(Frame? frame, int index) => frame is not null && index < frame.Luma.Length ? frame.Luma[index] : 0;
 }
+
+/// <summary>The composition asset compiled ahead of time into a generated backend.</summary>
+[GraphAsset("Assets/composition.graph.json")]
+public sealed partial class CompositionGraph;
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(RampPayload))]

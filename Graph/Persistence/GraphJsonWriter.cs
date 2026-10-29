@@ -5,7 +5,10 @@ namespace MASS4.Graph;
 /// <summary>Options for writing a graph document.</summary>
 public sealed record GraphWriteOptions
 {
-    /// <summary>Whether the default view layout is embedded; omit it for source-controlled assets.</summary>
+    /// <summary>
+    /// Whether the default view layout (positions and collapsed groups) is embedded; omit it for source-controlled
+    /// assets. Groups themselves are document content and are always written.
+    /// </summary>
     public bool IncludeLayout { get; init; } = true;
 
     /// <summary>Whether output is indented, one property per line, for merge-friendly diffs.</summary>
@@ -47,7 +50,8 @@ public static partial class GraphJson
         writer.WriteNumber("schemaVersion", SchemaVersion);
         writer.WriteString("assetId", document.AssetId.ToString());
         WriteElements(writer, document);
-        if (options.IncludeLayout && document.Positions.Count > 0)
+        WriteGroups(writer, document);
+        if (options.IncludeLayout && (document.Positions.Count > 0 || document.CollapsedGroups.Count > 0))
         {
             writer.WritePropertyName("layout");
             WriteLayoutObject(writer, document);
@@ -88,6 +92,35 @@ public static partial class GraphJson
             writer.WriteString("id", edge.Id.ToString());
             writer.WriteString("source", edge.Source.ToString());
             writer.WriteString("target", edge.Target.ToString());
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+    }
+
+    /// <summary>Writes groups only when there are any, so documents without groups keep their form.</summary>
+    static void WriteGroups(Utf8JsonWriter writer, GraphDocument document)
+    {
+        if (document.Groups.Count == 0)
+        {
+            return;
+        }
+        writer.WriteStartArray("groups");
+        foreach (var group in document.Groups.OrderBy(static group => group.Id))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("id", group.Id.ToString());
+            writer.WriteString("title", group.Title);
+            if (group.Parent is { } parent)
+            {
+                writer.WriteString("parent", parent.ToString());
+            }
+            writer.WriteStartArray("nodes");
+            foreach (var node in group.Nodes.Order())
+            {
+                writer.WriteStringValue(node.ToString());
+            }
+            writer.WriteEndArray();
+            WriteExtensions(writer, group.Extensions);
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -216,6 +249,15 @@ public static partial class GraphJson
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
+        if (document.CollapsedGroups.Count > 0)
+        {
+            writer.WriteStartArray("collapsed");
+            foreach (var group in document.CollapsedGroups.Order())
+            {
+                writer.WriteStringValue(group.ToString());
+            }
+            writer.WriteEndArray();
+        }
         writer.WriteEndObject();
     }
 

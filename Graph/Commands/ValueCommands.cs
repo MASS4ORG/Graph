@@ -46,6 +46,7 @@ public sealed class SetPayloadCommand(ElementId nodeId, object? payload) : IGrap
 public sealed class SetAnnotationCommand(ElementId nodeId, StableId annotationType, object? value) : IGraphCommand
 {
     StableId canonical;
+    object? stored;
     object? previous;
 
     /// <inheritdoc />
@@ -68,13 +69,13 @@ public sealed class SetAnnotationCommand(ElementId nodeId, StableId annotationTy
             diagnostics.Error(GraphDiagnosticIds.NodeNotFound, NodeId, "The node does not exist.");
             return false;
         }
-        if (AnnotationRules.Check(graph.Registry, NodeId, AnnotationType, Value, out canonical) is { } problem)
+        if (AnnotationRules.Check(graph.Registry, NodeId, AnnotationType, Value, out canonical, out stored) is { } problem)
         {
             diagnostics.Add(problem);
             return false;
         }
         previous = node.Annotations.TryGetValue(canonical, out var current) ? current : null;
-        graph.SetAnnotationCore(node, canonical, Value);
+        graph.SetAnnotationCore(node, canonical, stored);
         return true;
     }
 
@@ -96,18 +97,27 @@ static class AnnotationRules
         ElementId node,
         StableId type,
         object? value,
-        out StableId canonical)
+        out StableId canonical,
+        out object? stored)
     {
         canonical = registry.Annotations.Canonicalize(type);
+        stored = value;
         if (!registry.Annotations.TryResolve(type, out var annotation))
         {
             return new(GraphDiagnosticIds.AnnotationTypeNotRegistered, DiagnosticSeverity.Error, node,
                 $"Annotation type {type} is not registered.");
         }
-        return value is null || annotation.Accepts(value)
-            ? null
-            : new(GraphDiagnosticIds.AnnotationValueMismatch, DiagnosticSeverity.Error, node,
+        if (value is not null && !annotation.Accepts(value))
+        {
+            return new(GraphDiagnosticIds.AnnotationValueMismatch, DiagnosticSeverity.Error, node,
                 $"Annotation '{annotation.DisplayName}' holds {annotation.Kind} values.");
+        }
+        // Signal values follow renames exactly as they do on load, so edits never store an obsolete identity.
+        if (annotation.Kind == AnnotationKind.Signal && value is StableId signal)
+        {
+            stored = registry.Signals.Canonicalize(signal);
+        }
+        return null;
     }
 }
 

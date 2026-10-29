@@ -5,7 +5,7 @@ namespace MASS4.Graph.Generator;
 
 static class ModuleEmitter
 {
-    public static string Emit(AttributeData module, Definition[] definitions)
+    public static string Emit(AttributeData module, Definition[] definitions, SemanticsReferences semantics)
     {
         var text = new StringBuilder(DeclarationEmitter.Header);
         var name = (string)module.ConstructorArguments[0].Value!;
@@ -25,7 +25,8 @@ static class ModuleEmitter
             Register(text, definition);
         }
         text.AppendLine("}");
-        if (definitions.Any(static d => d.Kind == "GraphValueAttribute" || BehaviorKind(d) == 0))
+        // Value declarations bind storage only when the consumer references dataflow; a core-only assembly registers types.
+        if (semantics.Dataflow && definitions.Any(static d => d.Kind == "GraphValueAttribute" || BehaviorKind(d) == 0))
         {
             Dataflow(text, definitions);
         }
@@ -42,7 +43,7 @@ static class ModuleEmitter
         {
             text.AppendLine($"registry.{registry}.AddRename({Definition.Identity((string)rename.ConstructorArguments[0].Value!)}, {definition.FullName}.Type.Id);");
         }
-        if (Definition.Named<string>(definition.Attribute, "GuardType") is not null)
+        if (definition.IsGuarded)
         {
             text.AppendLine($"global::MASS4.Graph.State.StateNodes.AddTransitionMigration(registry, {definition.FullName}.Type.Id);");
         }
@@ -90,7 +91,7 @@ static class ModuleEmitter
     static void Semantics(StringBuilder text, Definition[] definitions, string kind, int behaviorKind)
     {
         var nodes = definitions.Where(d => BehaviorKind(d) == behaviorKind ||
-            (kind == "State" && (BehaviorKind(d) == 3 || Definition.Named<string>(d.Attribute, "GuardType") is not null)))
+            (kind == "State" && (BehaviorKind(d) == 3 || d.IsGuarded)))
             .ToArray();
         if (nodes.Length == 0)
         {

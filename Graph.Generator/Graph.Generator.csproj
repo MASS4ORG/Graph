@@ -18,7 +18,7 @@
         <RepositoryUrl>https://github.com/MASS4ORG/Graph.git</RepositoryUrl>
         <IsRoslynComponent>true</IsRoslynComponent>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <Description>Compile-time graph registration and typed builders.</Description>
+        <Description>Analyzer for MASS4.Graph: compile-time registration, typed builders, build-time diagnostics and generated backends for saved graph assets.</Description>
     </PropertyGroup>
 
     <ItemGroup>

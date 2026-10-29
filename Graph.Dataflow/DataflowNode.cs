@@ -43,22 +43,66 @@ public sealed class DataflowNode(DataflowEvaluator evaluate, bool isVolatile = f
 }
 
 /// <summary>
+/// Storage and wiring behind <see cref="DataflowContext"/>. The interpreter's <see cref="DataflowProgram"/> is one
+/// implementation; generated backends supply their own, so node behaviors run unchanged on every backend. Nodes and
+/// ports are addressed by the backend's node index and each node's port declaration index.
+/// </summary>
+public abstract class DataflowFrame
+{
+    /// <summary>The node at an index.</summary>
+    protected internal abstract GraphNode NodeAt(int node);
+
+    /// <summary>Whether an input port receives a data edge.</summary>
+    protected internal abstract bool IsConnected(int node, int port);
+
+    /// <summary>Reads a port value, applying any coercion of an input.</summary>
+    protected internal abstract T Read<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port)
+        where T : unmanaged;
+
+    /// <summary>Reads a port's object value.</summary>
+    protected internal abstract T? ReadReference<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port)
+        where T : class;
+
+    /// <summary>Writes an output value.</summary>
+    protected internal abstract void Write<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port, T value)
+        where T : unmanaged;
+
+    /// <summary>Writes an output object value.</summary>
+    protected internal abstract void WriteReference<T>(
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int node,
+        int port,
+        T? value)
+        where T : class;
+
+    /// <summary>Copies a value between two ports of the same inferred type.</summary>
+    protected internal abstract void Copy(InstanceBuffer instances, InstanceHandle instance, int node, int source, int target);
+}
+
+/// <summary>
 /// What a node sees while it evaluates. Ports are addressed by their index in the node's declaration order; inputs
 /// are already up to date.
 /// </summary>
 public readonly ref struct DataflowContext
 {
-    readonly DataflowProgram program;
+    readonly DataflowFrame frame;
     readonly int node;
 
-    internal DataflowContext(
-        DataflowProgram program,
+    /// <summary>Creates the context of one node evaluation; backends call this, behaviors receive it.</summary>
+    /// <param name="frame">The backend's storage and wiring.</param>
+    /// <param name="evaluation">Ambient services.</param>
+    /// <param name="instances">The instance buffer being evaluated.</param>
+    /// <param name="instance">The instance being evaluated.</param>
+    /// <param name="node">The node's index in <paramref name="frame"/>.</param>
+    public DataflowContext(
+        DataflowFrame frame,
         EvaluationContext evaluation,
         InstanceBuffer instances,
         InstanceHandle instance,
         int node)
     {
-        this.program = program;
+        this.frame = frame;
         this.node = node;
         Evaluation = evaluation;
         Instances = instances;
@@ -75,37 +119,35 @@ public readonly ref struct DataflowContext
     public InstanceHandle Instance { get; }
 
     /// <summary>The node being evaluated.</summary>
-    public GraphNode Node => program.NodeAt(node);
+    public GraphNode Node => frame.NodeAt(node);
 
     /// <summary>The node payload.</summary>
     public object? Payload => Node.Payload;
 
     /// <summary>Whether an input port receives an edge; unconnected inputs read the default value.</summary>
-    public bool IsConnected(int port) => program.IsConnected(node, port);
+    public bool IsConnected(int port) => frame.IsConnected(node, port);
 
     /// <summary>Reads an input or output value.</summary>
     /// <exception cref="InvalidOperationException">The port carries no such data.</exception>
-    public T Read<T>(int port) where T : unmanaged => program.ReadLocal<T>(Instances, Instance, node, port);
+    public T Read<T>(int port) where T : unmanaged => frame.Read<T>(Instances, Instance, node, port);
 
     /// <summary>Reads an input or output object value.</summary>
     /// <exception cref="InvalidOperationException">The port carries no such data.</exception>
-    public T? ReadReference<T>(int port) where T : class =>
-        program.ReadLocalReference<T>(Instances, Instance, node, port);
+    public T? ReadReference<T>(int port) where T : class => frame.ReadReference<T>(Instances, Instance, node, port);
 
     /// <summary>Writes an output value.</summary>
     /// <exception cref="InvalidOperationException">The port carries no such data.</exception>
-    public void Write<T>(int port, T value) where T : unmanaged =>
-        program.Location(node, port).Write(Instances, Instance, value);
+    public void Write<T>(int port, T value) where T : unmanaged => frame.Write(Instances, Instance, node, port, value);
 
     /// <summary>Writes an output object value.</summary>
     /// <exception cref="InvalidOperationException">The port carries no such data.</exception>
     public void WriteReference<T>(int port, T? value) where T : class =>
-        program.Location(node, port).WriteReference(Instances, Instance, value);
+        frame.WriteReference(Instances, Instance, node, port, value);
 
     /// <summary>
     /// Copies a value between two ports of the same inferred type without naming it, for generic nodes such as
     /// relays and selectors.
     /// </summary>
     /// <exception cref="InvalidOperationException">The ports carry no data or different types.</exception>
-    public void Copy(int source, int target) => program.CopyLocal(Instances, Instance, node, source, target);
+    public void Copy(int source, int target) => frame.Copy(Instances, Instance, node, source, target);
 }

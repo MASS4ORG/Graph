@@ -12,9 +12,11 @@ public sealed record GraphLoadResult(GraphDocument? Document, IReadOnlyList<Diag
 public static partial class GraphJson
 {
     static readonly HashSet<string> RootProperties =
-        ["format", "schemaVersion", "assetId", "variables", "nodes", "edges", "layout"];
+        ["format", "schemaVersion", "assetId", "variables", "nodes", "edges", "groups", "layout"];
 
     static readonly HashSet<string> NodeProperties = ["id", "type", "version", "ports", "annotations", "payload"];
+
+    static readonly HashSet<string> GroupProperties = ["id", "title", "parent", "nodes"];
 
     /// <summary>Loads a document, resolving renamed types and migrating older nodes through the registry.</summary>
     public static GraphLoadResult Deserialize(string json, GraphTypeRegistry registry) =>
@@ -69,6 +71,7 @@ public static partial class GraphJson
         ReadEach(root, "variables", diagnostics, element => ReadVariable(document, element, diagnostics));
         ReadEach(root, "nodes", diagnostics, element => ReadNode(document, element, diagnostics));
         ReadEach(root, "edges", diagnostics, element => ReadEdge(document, element, diagnostics));
+        ReadGroups(document, root, diagnostics);
         if (root.TryGetProperty("layout", out var layout))
         {
             ReadLayout(document, layout, diagnostics);
@@ -326,7 +329,8 @@ public static partial class GraphJson
         document.AddEdgeCore(edge);
     }
 
-    static void ReadLayout(GraphDocument document, JsonElement layout, DiagnosticBag diagnostics) =>
+    static void ReadLayout(GraphDocument document, JsonElement layout, DiagnosticBag diagnostics)
+    {
         ReadEach(layout, "positions", diagnostics, element =>
         {
             var node = RequireElementId(element, "node");
@@ -338,6 +342,88 @@ public static partial class GraphJson
             }
             document.SetPositionCore(node, new(RequireDouble(element, "x"), RequireDouble(element, "y")));
         });
+        ReadEach(layout, "collapsed", diagnostics, element =>
+        {
+            var group = ParseElementId(element);
+            if (!document.TryGetGroup(group, out _))
+            {
+                diagnostics.Warning(GraphDiagnosticIds.GroupNotFound, group,
+                    "A collapsed entry refers to a missing group; dropped.");
+                return;
+            }
+            document.SetCollapsedCore(group, true);
+        });
+    }
+
+    /// <summary>
+    /// Reads groups in three passes (groups, then nesting, then membership) so entries may refer to groups saved
+    /// after them. Inconsistent references are dropped with warnings; the groups themselves are kept.
+    /// </summary>
+    static void ReadGroups(GraphDocument document, JsonElement root, DiagnosticBag diagnostics)
+    {
+        List<(GraphGroup Group, ElementId? Parent, JsonElement Element)> read = [];
+        ReadEach(root, "groups", diagnostics, element =>
+        {
+            var id = RequireElementId(element, "id");
+            var title = RequireString(element, "title");
+            ElementId? parent = element.TryGetProperty("parent", out _) ? RequireElementId(element, "parent") : null;
+            if (document.ContainsElement(id))
+            {
+                diagnostics.Error(GraphDiagnosticIds.DuplicateElement, id, "The group identity is used twice; dropped.");
+                return;
+            }
+            var group = new GraphGroup(id, title, null) { Extensions = ReadExtensions(element, GroupProperties) };
+            document.AddGroupCore(group);
+            read.Add((group, parent, element));
+        });
+        foreach (var (group, parent, _) in read)
+        {
+            if (parent is not { } id)
+            {
+                continue;
+            }
+            if (!document.TryGetGroup(id, out _))
+            {
+                diagnostics.Warning(GraphDiagnosticIds.GroupNotFound, group.Id,
+                    "The enclosing group is missing; the group is kept at the top level.");
+            }
+            else if (document.IsWithin(id, group.Id))
+            {
+                diagnostics.Warning(GraphDiagnosticIds.GroupCycle, group.Id,
+                    "The enclosing group would contain this group; it is kept at the top level.");
+            }
+            else
+            {
+                document.SetGroupParentCore(group, id);
+            }
+        }
+        foreach (var (group, _, element) in read)
+        {
+            ReadEach(element, "nodes", diagnostics, member =>
+            {
+                var node = ParseElementId(member);
+                if (!document.TryGetNode(node, out _))
+                {
+                    diagnostics.Warning(GraphDiagnosticIds.NodeNotFound, node,
+                        "A group refers to a missing node; dropped.");
+                }
+                else if (document.GroupOf(node) is not null)
+                {
+                    diagnostics.Warning(GraphDiagnosticIds.DuplicateElement, node,
+                        "The node is in more than one group; it stays in the first.");
+                }
+                else
+                {
+                    document.SetNodeGroupCore(node, group.Id);
+                }
+            });
+        }
+    }
+
+    static ElementId ParseElementId(JsonElement element) =>
+        element.ValueKind == JsonValueKind.String && ElementId.TryParse(element.GetString(), out var id)
+            ? id
+            : throw new GraphFormatException("A group reference is not a valid identity.");
 
     static object? ReadValue(
         JsonElement value,

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <AssemblyName>MASS4.Graph.Samples.CustomNodes</AssemblyName>
+        <RootNamespace>MASS4.Graph.Samples.CustomNodes</RootNamespace>
+        <Description>A user assembly that references only the core and the analyzer, declaring custom nodes, values and signals.</Description>
+        <IsPackable>false</IsPackable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- true consumes the packed analyzer from artifacts/packages, as an external user assembly would. -->
+        <UseAnalyzerPackage Condition="'$(UseAnalyzerPackage)' == ''">false</UseAnalyzerPackage>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Graph\Graph.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseAnalyzerPackage)' != 'true'">
+        <ProjectReference Include="..\..\Graph.Generator\Graph.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <PropertyGroup Condition="'$(UseAnalyzerPackage)' == 'true'">
+        <RestoreAdditionalProjectSources>$(MSBuildThisFileDirectory)../../artifacts/packages</RestoreAdditionalProjectSources>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(UseAnalyzerPackage)' == 'true'">
+        <PackageReference Include="MASS4.Graph.Generator" Version="$(AnalyzerPackageVersion)" PrivateAssets="all" />
+    </ItemGroup>
+
+</Project>

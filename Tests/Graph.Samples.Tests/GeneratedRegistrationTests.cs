@@ -19,6 +19,7 @@ public class GeneratedRegistrationTests
         ShaderLibrary.Register(hand);
         var generated = new GraphTypeRegistry().Add(new S.ShaderModule());
         await EqualRegistries(hand, generated);
+        await EqualBindings(hand, new(ShaderLibrary.CreateDataflow()), new(new S.ShaderModule().CreateDataflow()));
         await Assert.That(Write(hand.PortTypes.Resolve(S.Scalar.Type.Id).ValueSerializer!, 1.25f))
             .IsEqualTo(Write(S.Scalar.Type.ValueSerializer!, 1.25f));
         await Assert.That(Write(hand.PortTypes.Resolve(S.Colour.Type.Id).ValueSerializer!, new Color(.1f, .2f, .3f, 1)))
@@ -42,6 +43,8 @@ public class GeneratedRegistrationTests
         GuardLibrary.Register(hand, F.SeePlayer.Type.Id);
         var generated = new GraphTypeRegistry().Add(new F.GuardModule());
         await EqualRegistries(hand, generated);
+        await EqualBindings(hand, new(GuardLibrary.CreateDataflow(), GuardLibrary.CreateState()),
+            new(new F.GuardModule().CreateDataflow(), new F.GuardModule().CreateState()));
         await Assert.That(hand.Signals.Resolve(GuardLibrary.SeePlayer.Id).Id)
             .IsEqualTo(generated.Signals.Resolve(GuardLibrary.SeePlayer.Id).Id);
         await Assert.That(generated.Signals.Resolve(GuardLibrary.SeePlayer.Id).Id).IsEqualTo(F.SeePlayer.Type.Id);
@@ -65,6 +68,7 @@ public class GeneratedRegistrationTests
         CompositorLibrary.Register(hand);
         var generated = new GraphTypeRegistry().Add(new C.CompositorModule());
         await EqualRegistries(hand, generated);
+        await EqualBindings(hand, new(CompositorLibrary.CreateDataflow()), new(new C.CompositorModule().CreateDataflow()));
         var example = CompositionExample.Build(CompositorLibrary.CreateDataflow(), hand);
         var scenario = new Scenario("generated compositor", 2,
         [
@@ -215,6 +219,11 @@ public class GeneratedRegistrationTests
     static async Task EqualRegistries(GraphTypeRegistry hand, GraphTypeRegistry generated)
     {
         await Assert.That(Snapshot(hand)).IsEqualTo(Snapshot(generated));
+        foreach (var expected in hand.Migrations)
+        {
+            await Assert.That(generated.TryGetMigration(expected.NodeTypeId, expected.FromVersion, out var actual)).IsTrue();
+            await Assert.That(actual!.Migrate).IsEqualTo(expected.Migrate);
+        }
         foreach (var expected in hand.NodeTypes.Entries)
         {
             var actual = generated.NodeTypes.Resolve(expected.Id);
@@ -236,7 +245,47 @@ public class GeneratedRegistrationTests
                 $"N:{n.Id}:{n.DisplayName}:{n.Version}:{n.PayloadSerializer is not null}:" + string.Join(";", n.Ports)))
             .Concat(registry.Signals.Entries.Select(static s => $"S:{s.Id}:{s.DisplayName}"))
             .Concat(registry.Annotations.Entries.Select(static a => $"A:{a.Id}:{a.DisplayName}:{a.Kind}"))
+            .Concat(registry.HostFunctions.Entries.Select(static f => $"H:{f.Id}:{f.DisplayName}"))
+            .Concat(Renames("P", registry.PortTypes)).Concat(Renames("N", registry.NodeTypes))
+            .Concat(Renames("S", registry.Signals)).Concat(Renames("A", registry.Annotations))
+            .Concat(Renames("H", registry.HostFunctions))
+            .Concat(registry.Migrations.Select(static m => $"M:{m.NodeTypeId}:{m.FromVersion}"))
             .Order(StringComparer.Ordinal));
+
+    static IEnumerable<string> Renames<T>(string kind, IdentityRegistry<T> registry) where T : class, ITypeIdentity =>
+        registry.Renames.Select(r => $"R{kind}:{r.Key}>{r.Value}");
+
+    /// <summary>The semantics bindings a registration produces, compared per registered identity.</summary>
+    sealed record Bindings(DataflowSemantics Data, StateSemantics? State = null);
+
+    static async Task EqualBindings(GraphTypeRegistry registry, Bindings hand, Bindings generated) =>
+        await Assert.That(BindingSnapshot(registry, generated)).IsEqualTo(BindingSnapshot(registry, hand));
+
+    static string BindingSnapshot(GraphTypeRegistry registry, Bindings bindings)
+    {
+        var ports = registry.PortTypes.Entries.ToArray();
+        var data = bindings.Data;
+        return string.Join("\n", ports.Select(p => data.TryGetValueType(p.Id, out var v)
+                ? $"V:{p.Id}:{v.ClrType.FullName}:{v.Storage}" : $"V:{p.Id}:none")
+            .Concat(ports.SelectMany(_ => ports, (a, b) => (a, b)).Where(static pair => pair.a.Id != pair.b.Id)
+                .Select(pair => (pair, check: data.Conversions.Check(pair.a, pair.b)))
+                .Where(static c => c.check.Kind != PortCompatibilityKind.Incompatible)
+                .Select(static c => $"C:{c.pair.a.Id}>{c.pair.b.Id}:{c.check.Kind}:{c.check.Conversion?.Id}"))
+            .Concat(registry.NodeTypes.Entries.Select(n => $"D:{n.Id}:" + (data.TryGetBehavior(n.Id, out var b)
+                ? $"{b.IsVolatile}:{Features(b.RequiredFeatures)}" : "none")))
+            .Concat(registry.NodeTypes.Entries.Select(n => $"S:{n.Id}:" + StateRole(bindings.State, n.Id)))
+            .Order(StringComparer.Ordinal));
+    }
+
+    static string StateRole(StateSemantics? state, StableId id) =>
+        state is null ? "none"
+        : state.IsEntry(id) ? "entry"
+        : state.TryGetState(id, out var s) ? $"state:{s.MemorySize}:{Features(s.RequiredFeatures)}"
+        : state.TryGetTransition(id, out var t) ? $"transition:{Features(t.RequiredFeatures)}"
+        : "none";
+
+    static string Features(IReadOnlyList<Type> features) =>
+        string.Join(",", features.Select(static f => f.FullName).Order(StringComparer.Ordinal));
 
     static string Write(IValueSerializer serializer, object? value)
     {

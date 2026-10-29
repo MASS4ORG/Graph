@@ -10,4 +10,4 @@ Run from the repository root:
 dotnet test --project Graph.Interpreter.Tests
 ```
 
-See the [interpreter README](../Graph.Interpreter/README.md) for backend/session usage and [sample tests](../Graph.Samples.Tests/README.md) for generated-registration equivalence over domain graphs.
+See the [interpreter README](../../Graph.Interpreter/README.md) for backend/session usage and [sample tests](../Graph.Samples.Tests/README.md) for generated-registration equivalence over domain graphs.

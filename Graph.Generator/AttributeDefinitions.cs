@@ -36,6 +36,8 @@ internal sealed class GraphNodeAttribute(string id, string name) : Attribute
     public bool Conversion { get; set; }
     /// <summary>Boolean type identity for a State guarded-transition helper, including its migration.</summary>
     public string? GuardType { get; set; }
+    /// <summary>Boolean GraphValue declaration for a State guarded-transition helper; typed alternative to GuardType.</summary>
+    public Type? Guard { get; set; }
 }
 
 /// <summary>Declares an ordered port, public key and domain storage type.</summary>
@@ -49,6 +51,17 @@ internal sealed class GraphNodeAttribute(string id, string name) : Attribute
 internal sealed class GraphPortAttribute(
     string member, string key, string name, PortDirection direction, string typeId, Type valueType) : Attribute
 {
+    /// <summary>Declares a port carrying a GraphValue declared in source; its identity and CLR type follow that declaration.</summary>
+    /// <param name="member">Generated member name.</param>
+    /// <param name="key">Persistent key scoped to the node.</param>
+    /// <param name="name">Display name.</param>
+    /// <param name="direction">Connection direction.</param>
+    /// <param name="value">GraphValue declaration.</param>
+    public GraphPortAttribute(string member, string key, string name, PortDirection direction, Type value)
+        : this(member, key, name, direction, "", value)
+    {
+    }
+
     /// <summary>Generated member name.</summary>
     public string Member { get; } = member;
     /// <summary>Persistent port key.</summary>
@@ -57,9 +70,9 @@ internal sealed class GraphPortAttribute(
     public string Name { get; } = name;
     /// <summary>Connection direction.</summary>
     public PortDirection Direction { get; } = direction;
-    /// <summary>Carried type identity.</summary>
+    /// <summary>Carried type identity; empty when declared through a GraphValue declaration.</summary>
     public string PortTypeId { get; } = typeId;
-    /// <summary>CLR type or flow marker.</summary>
+    /// <summary>CLR type, flow marker or GraphValue declaration.</summary>
     public Type ValueType { get; } = valueType;
     /// <summary>Connection limit; defaults to single for inputs and multiple for outputs.</summary>
     public PortMultiplicity Multiplicity { get; set; } = (PortMultiplicity)(-1);
@@ -151,6 +164,18 @@ internal sealed class GraphPayloadAttribute(Type type) : Attribute
     public string Member { get; set; } = "Value";
     /// <summary>Static parameterless default factory on this node declaration.</summary>
     public string? DefaultFactory { get; set; }
+}
+
+/// <summary>
+/// Compiles a saved graph asset into this partial class: an ICompiledGraph specialised to the asset's topology,
+/// with direct behavior calls and the interpreter's instance layout. Add the asset as an AdditionalFiles item.
+/// </summary>
+/// <param name="path">Path of the asset, matched against the end of an AdditionalFiles path.</param>
+[AttributeUsage(AttributeTargets.Class)]
+internal sealed class GraphAssetAttribute(string path) : Attribute
+{
+    /// <summary>Path of the asset.</summary>
+    public string Path { get; } = path;
 }
 
 /// <summary>Declares a JsonObject-to-JsonObject migration method on a node.</summary>

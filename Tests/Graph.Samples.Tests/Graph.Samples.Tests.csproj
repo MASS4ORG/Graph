@@ -14,6 +14,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="..\..\Samples\*\Assets\*.graph.json" Link="Assets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\Graph.Interpreter\Graph.Interpreter.csproj" />
         <ProjectReference Include="..\..\Samples\Graph.Samples.Compositor\Graph.Samples.Compositor.csproj" />
         <ProjectReference Include="..\..\Samples\Graph.Samples.Fsm\Graph.Samples.Fsm.csproj" />

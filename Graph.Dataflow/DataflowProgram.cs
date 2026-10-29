@@ -5,7 +5,7 @@ namespace MASS4.Graph.Dataflow;
 /// once per evaluation for volatile dependencies and once per instance otherwise. Slots live in the shared instance
 /// layout, so one program serves every instance; evaluating different instances concurrently is safe.
 /// </summary>
-public sealed partial class DataflowProgram : IDataPlane
+public sealed partial class DataflowProgram : DataflowFrame, IDataPlane
 {
     const int StaticEpoch = -1;
 
@@ -138,19 +138,38 @@ public sealed partial class DataflowProgram : IDataPlane
 
     internal InstanceSlot<int> EpochCounter => epochCounter;
 
-    internal GraphNode NodeAt(int node) => nodes[node].Node;
+    /// <inheritdoc />
+    protected internal override GraphNode NodeAt(int node) => nodes[node].Node;
 
-    internal bool IsConnected(int node, int port) => ports[nodes[node].FirstPort + port].SourceNode >= 0;
+    /// <inheritdoc />
+    protected internal override bool IsConnected(int node, int port) =>
+        ports[nodes[node].FirstPort + port].SourceNode >= 0;
 
-    internal ValueLocation Location(int node, int port) => LocationOf(nodes[node].FirstPort + port);
+    ValueLocation Location(int node, int port) => LocationOf(nodes[node].FirstPort + port);
 
-    internal T ReadLocal<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port)
-        where T : unmanaged => ReadPort<T>(instances, instance, nodes[node].FirstPort + port);
+    /// <inheritdoc />
+    protected internal override T Read<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port) =>
+        ReadPort<T>(instances, instance, nodes[node].FirstPort + port);
 
-    internal T? ReadLocalReference<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port)
+    /// <inheritdoc />
+    protected internal override T? ReadReference<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port)
         where T : class => Location(node, port).ReadReference<T>(instances, instance);
 
-    internal void CopyLocal(InstanceBuffer instances, InstanceHandle instance, int node, int from, int to)
+    /// <inheritdoc />
+    protected internal override void Write<T>(InstanceBuffer instances, InstanceHandle instance, int node, int port, T value) =>
+        Location(node, port).Write(instances, instance, value);
+
+    /// <inheritdoc />
+    protected internal override void WriteReference<T>(
+        InstanceBuffer instances,
+        InstanceHandle instance,
+        int node,
+        int port,
+        T? value)
+        where T : class => Location(node, port).WriteReference(instances, instance, value);
+
+    /// <inheritdoc />
+    protected internal override void Copy(InstanceBuffer instances, InstanceHandle instance, int node, int from, int to)
     {
         var entry = ports[nodes[node].FirstPort + from];
         var source = LocationOf(nodes[node].FirstPort + from);

@@ -143,12 +143,12 @@ public sealed class AddNodeCommand : IGraphCommand
         annotations = [];
         foreach (var (type, value) in Annotations)
         {
-            if (AnnotationRules.Check(graph.Registry, NodeId, type, value, out var canonical) is { } problem)
+            if (AnnotationRules.Check(graph.Registry, NodeId, type, value, out var canonical, out var stored) is { } problem)
             {
                 diagnostics.Add(problem);
                 return false;
             }
-            annotations[canonical] = value;
+            annotations[canonical] = stored!;
         }
         return true;
     }
@@ -163,13 +163,14 @@ public sealed class AddNodeCommand : IGraphCommand
     }
 }
 
-/// <summary>Removes a node together with its edges and layout position.</summary>
+/// <summary>Removes a node together with its edges, group membership and layout position.</summary>
 /// <param name="nodeId">The node to remove.</param>
 public sealed class RemoveNodeCommand(ElementId nodeId) : IGraphCommand
 {
     GraphNode? removed;
     GraphEdge[] removedEdges = [];
     GraphPoint? removedPosition;
+    ElementId? removedGroup;
 
     /// <inheritdoc />
     public string Description => "Remove node";
@@ -188,6 +189,7 @@ public sealed class RemoveNodeCommand(ElementId nodeId) : IGraphCommand
         removed = node;
         removedEdges = [.. node.Ports.SelectMany(port => graph.GetEdges(port.Id)).Distinct()];
         removedPosition = graph.Positions.TryGetValue(NodeId, out var position) ? position : null;
+        removedGroup = graph.GroupOf(NodeId);
         foreach (var edge in removedEdges)
         {
             graph.RemoveEdgeCore(edge);
@@ -211,6 +213,10 @@ public sealed class RemoveNodeCommand(ElementId nodeId) : IGraphCommand
         if (removedPosition is { } position)
         {
             graph.SetPositionCore(NodeId, position);
+        }
+        if (removedGroup is { } group && graph.TryGetGroup(group, out _))
+        {
+            graph.SetNodeGroupCore(NodeId, group);
         }
     }
 }
