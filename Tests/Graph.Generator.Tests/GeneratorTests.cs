@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MASS4.StableIdentity;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using RoslynDiagnostic = Microsoft.CodeAnalysis.Diagnostic;
@@ -24,11 +25,13 @@ public class GeneratorTests
             typeof(Control.ControlSemantics).Assembly.Location, typeof(State.StateNodes).Assembly.Location])
         .Distinct(StringComparer.Ordinal).Select(static path => MetadataReference.CreateFromFile(path))];
 
-    /// <summary>The framework and the core only, as a user assembly referencing no semantics package sees them.</summary>
+    /// <summary>The framework, the core and its identity dependency, as a user assembly referencing no semantics
+    /// package sees them.</summary>
     static readonly ImmutableArray<MetadataReference> CoreReferences = [.. ((string)AppContext.GetData(
             "TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
         .Where(static path => !Path.GetFileName(path).StartsWith("MASS4.", StringComparison.Ordinal))
         .Append(typeof(GraphTypeRegistry).Assembly.Location)
+        .Append(typeof(StableId).Assembly.Location)
         .Distinct(StringComparer.Ordinal).Select(static path => MetadataReference.CreateFromFile(path))];
 
     [Test]

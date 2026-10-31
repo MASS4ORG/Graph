@@ -14,7 +14,10 @@ static class ModuleEmitter
         {
             text.AppendLine($"namespace {name[..dot]};");
         }
-        text.AppendLine($"public sealed class {name[(dot + 1)..]} : IGraphTypeModule\n{{");
+        var dataflow = BindsDataflow(definitions, semantics);
+        var control = SemanticsNodes(definitions, "Control", 1);
+        var state = SemanticsNodes(definitions, "State", 2);
+        text.AppendLine($"public sealed class {name[(dot + 1)..]} : {Interfaces(dataflow, control, state)}\n{{");
         text.AppendLine("public void Register(GraphTypeRegistry registry) {");
         foreach (var prerequisite in module.ConstructorArguments[1].Values)
         {
@@ -25,15 +28,23 @@ static class ModuleEmitter
             Register(text, definition);
         }
         text.AppendLine("}");
-        // Value declarations bind storage only when the consumer references dataflow; a core-only assembly registers types.
-        if (semantics.Dataflow && definitions.Any(static d => d.Kind == "GraphValueAttribute" || BehaviorKind(d) == 0))
+        if (dataflow)
         {
             Dataflow(text, definitions);
         }
-        Semantics(text, definitions, "Control", 1);
-        Semantics(text, definitions, "State", 2);
+        Semantics(text, control, "Control");
+        Semantics(text, state, "State");
         return text.AppendLine("}").ToString();
     }
+
+    // Value declarations bind storage only when the consumer references dataflow; a core-only assembly registers types.
+    static bool BindsDataflow(Definition[] definitions, SemanticsReferences semantics) => semantics.Dataflow &&
+        definitions.Any(static d => d.Kind == "GraphValueAttribute" || BehaviorKind(d) == 0);
+
+    static string Interfaces(bool dataflow, Definition[] control, Definition[] state) => "IGraphTypeModule"
+        + (dataflow ? ", global::MASS4.Graph.Dataflow.IDataflowModule" : "")
+        + (control.Length > 0 ? ", global::MASS4.Graph.Control.IControlModule" : "")
+        + (state.Length > 0 ? ", global::MASS4.Graph.State.IStateModule" : "");
 
     static void Register(StringBuilder text, Definition definition)
     {
@@ -56,7 +67,8 @@ static class ModuleEmitter
 
     static void Dataflow(StringBuilder text, Definition[] definitions)
     {
-        text.AppendLine("public global::MASS4.Graph.Dataflow.DataflowSemantics CreateDataflow() { var semantics = new global::MASS4.Graph.Dataflow.DataflowSemantics();");
+        text.AppendLine("public global::MASS4.Graph.Dataflow.DataflowSemantics CreateDataflow() { var semantics = new global::MASS4.Graph.Dataflow.DataflowSemantics(); ConfigureDataflow(semantics); return semantics; }");
+        text.AppendLine("public void ConfigureDataflow(global::MASS4.Graph.Dataflow.DataflowSemantics semantics) {");
         foreach (var definition in definitions.Where(static d => d.Kind == "GraphValueAttribute"))
         {
             BindValue(text, definition);
@@ -65,7 +77,7 @@ static class ModuleEmitter
         {
             BindDataflow(text, definition);
         }
-        text.AppendLine("return semantics; }");
+        text.AppendLine("}");
     }
 
     static void BindValue(StringBuilder text, Definition definition)
@@ -88,16 +100,19 @@ static class ModuleEmitter
         text.AppendLine($"semantics.{(conversion ? "AddConversionNode" : "AddNode")}({definition.FullName}.Type{(conversion ? "" : ".Id")}, new global::MASS4.Graph.Dataflow.DataflowNode({owner}.@{method}, {volatileValue}{featureArguments}));");
     }
 
-    static void Semantics(StringBuilder text, Definition[] definitions, string kind, int behaviorKind)
+    static Definition[] SemanticsNodes(Definition[] definitions, string kind, int behaviorKind) =>
+        [.. definitions.Where(d => BehaviorKind(d) == behaviorKind ||
+            (kind == "State" && (BehaviorKind(d) == 3 || d.IsGuarded)))];
+
+    static void Semantics(StringBuilder text, Definition[] nodes, string kind)
     {
-        var nodes = definitions.Where(d => BehaviorKind(d) == behaviorKind ||
-            (kind == "State" && (BehaviorKind(d) == 3 || d.IsGuarded)))
-            .ToArray();
         if (nodes.Length == 0)
         {
             return;
         }
-        text.AppendLine($"public global::MASS4.Graph.{kind}.{kind}Semantics Create{kind}() {{ var semantics = new global::MASS4.Graph.{kind}.{kind}Semantics();");
+        var type = $"global::MASS4.Graph.{kind}.{kind}Semantics";
+        text.AppendLine($"public {type} Create{kind}() {{ var semantics = new {type}(); Configure{kind}(semantics); return semantics; }}");
+        text.AppendLine($"public void Configure{kind}({type} semantics) {{");
         foreach (var definition in nodes)
         {
             var behavior = definition.One("Behavior");
@@ -106,7 +121,7 @@ static class ModuleEmitter
                 : $"new {Definition.TypeName(behavior.ConstructorArguments[1])}()";
             text.AppendLine($"semantics.{method}({definition.FullName}.Type.Id, {value});");
         }
-        text.AppendLine("return semantics; }");
+        text.AppendLine("}");
     }
 
     static int BehaviorKind(Definition definition) => definition.One("Behavior")?.ConstructorArguments[0].Value is int kind

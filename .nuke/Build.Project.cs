@@ -27,7 +27,11 @@ sealed partial class Build
     IEnumerable<Project> VersionedProjects => PackableProjects;
 
     AbsolutePath PublishOutput(Project project) => PublishDir / project.Name;
-    Dictionary<string, object> MsBuildProperties => [];
+    [Parameter("Build against the published packages, ignoring local checkouts from Directory.Build.local.props")]
+    readonly bool NoLocalPackages;
+
+    /// <summary>Builds against the published packages even when Directory.Build.local.props points at local checkouts.</summary>
+    Dictionary<string, object> MsBuildProperties => new() { ["NoLocalPackages"] = NoLocalPackages };
     Target[] RestoreDependencies => [];
     Target[] PackDependencies => [Publish];
     Target[] ReleaseCommitDependencies => [UpdateProjectVersions];

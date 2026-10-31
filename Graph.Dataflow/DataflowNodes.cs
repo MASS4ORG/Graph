@@ -39,9 +39,13 @@ public static class DataflowNodes
         PayloadSerializer = VariableReferenceSerializer.Instance,
     };
 
-    /// <summary>Registers the built-in port and node types.</summary>
+    /// <summary>Registers the built-in port and node types; later calls on the same registry do nothing.</summary>
     public static void Register(GraphTypeRegistry registry)
     {
+        if (registry.NodeTypes.TryResolve(GetVariable.Id, out var registered) && ReferenceEquals(registered, GetVariable))
+        {
+            return;
+        }
         registry.PortTypes.Register(VariableValueType);
         registry.NodeTypes.Register(GetVariable);
         registry.NodeTypes.Register(Output);

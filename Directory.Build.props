@@ -9,4 +9,18 @@
     <WarningsAsErrors>nullable</WarningsAsErrors>
     <NoWarn>NU1701</NoWarn>
   </PropertyGroup>
+
+  <!-- `Directory.Build.local.props` points to local checkouts instead of the published packages (git-ignored) -->
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.local.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')"/>
+
+  <!-- `-p:NoLocalPackages=true` ignores every local checkout and builds against the published packages -->
+  <PropertyGroup Condition="'$(NoLocalPackages)' == 'true'">
+    <StableIdentityLocalPath></StableIdentityLocalPath>
+  </PropertyGroup>
+
+  <!-- Checked by Directory.Build.targets before a pack or publish; list each local checkout here -->
+  <PropertyGroup>
+    <UsesLocalPackages Condition="'$(StableIdentityLocalPath)' != ''">true</UsesLocalPackages>
+  </PropertyGroup>
 </Project>

@@ -164,6 +164,7 @@ public interface IGraphTypeModule
 public sealed class GraphTypeRegistry
 {
     readonly Dictionary<(StableId NodeType, int FromVersion), NodeMigration> migrations = [];
+    readonly HashSet<Type> modules = [];
 
     /// <summary>Registered node types.</summary>
     public IdentityRegistry<NodeType> NodeTypes { get; } = new();
@@ -183,10 +184,16 @@ public sealed class GraphTypeRegistry
     /// <summary>Registered payload migration steps, in no particular order.</summary>
     public IEnumerable<NodeMigration> Migrations => migrations.Values;
 
-    /// <summary>Adds a module's registrations.</summary>
+    /// <summary>
+    /// Adds a module's registrations once per module type, so independently composed packages may add the same module.
+    /// </summary>
     public GraphTypeRegistry Add(IGraphTypeModule module)
     {
-        module.Register(this);
+        ArgumentNullException.ThrowIfNull(module);
+        if (modules.Add(module.GetType()))
+        {
+            module.Register(this);
+        }
         return this;
     }
 

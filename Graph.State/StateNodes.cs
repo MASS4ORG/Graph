@@ -105,10 +105,14 @@ public static class StateNodes
 
     /// <summary>
     /// Registers the state-flow port type, the built-in node types, the transition annotations and the built-in
-    /// transition's version 1 → 2 migration.
+    /// transition's version 1 → 2 migration. Later calls on the same registry do nothing.
     /// </summary>
     public static void Register(GraphTypeRegistry registry)
     {
+        if (registry.NodeTypes.TryResolve(Entry.Id, out var registered) && ReferenceEquals(registered, Entry))
+        {
+            return;
+        }
         registry.PortTypes.Register(FlowType);
         registry.NodeTypes.Register(Entry);
         registry.NodeTypes.Register(State);

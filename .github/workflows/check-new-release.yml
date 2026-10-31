@@ -35,7 +35,7 @@ jobs:
       - name: Tag release if there are new commits
         run: |
           echo "HEAD_BEFORE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-          ./build.sh Test GitHubCreateTag \
+          ./build.sh TestReport GitHubCreateTag \
             --configuration Release \
             --github-repository "${{ github.repository }}" \
             --github-token "${{ secrets.GITHUB_TOKEN }}" \

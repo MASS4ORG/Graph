@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Changed!: `StableId`, `ITypeIdentity` and `IdentityRegistry<T>` moved to the `MASS4.StableIdentity` package and namespace #7
+- Added: `IDataflowModule`, `IControlModule` and `IStateModule` compose generated modules into shared semantics #11
+- Fixed: modules sharing built-in prerequisites, or added twice, register once #11
+
 ## [1.1.0] - 2026-10-29
 
 ### Added
