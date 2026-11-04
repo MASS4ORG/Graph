@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Changed!: `StableId`, `ITypeIdentity` and `IdentityRegistry<T>` moved to the `MASS4.StableIdentity` package and namespace #7
-- Added: `IDataflowModule`, `IControlModule` and `IStateModule` compose generated modules into shared semantics #11
+- Added: `IDataflowModule`, `IControlModule` and `IStateModule` compose generated modules #11
+- Added: `Diagnostic.Related` lists every element of a finding #13
+- Changed: unify shared NUKE builds.
+- Changed: `MASS4.StableIdentity` package and namespace #7
 - Fixed: modules sharing built-in prerequisites, or added twice, register once #11
 
 ## [1.1.0] - 2026-10-29

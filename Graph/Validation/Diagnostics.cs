@@ -22,6 +22,12 @@ public enum DiagnosticSeverity
 /// <param name="Message">User-facing reason.</param>
 public sealed record Diagnostic(string Id, DiagnosticSeverity Severity, ElementId? ElementId, string Message)
 {
+    /// <summary>
+    /// Further elements involved in the finding, such as every edge of a cycle; <see cref="ElementId"/> stays the
+    /// element to select first.
+    /// </summary>
+    public IReadOnlyList<ElementId> Related { get; init; } = [];
+
     /// <summary>Formats the diagnostic like a compiler message.</summary>
     public override string ToString() =>
         ElementId is { } element

@@ -1,6 +1,6 @@
 namespace MASS4.Graph.Dataflow;
 
-/// <summary>Rejects data edges that close a cycle; edges of other semantics are ignored.</summary>
+/// <summary>Rejects data edges that close a cycle, naming every edge of it; edges of other semantics are ignored.</summary>
 /// <param name="semantics">Decides which ports carry data.</param>
 sealed class DataflowAcyclicRule(DataflowSemantics semantics) : IGraphRule
 {
@@ -9,63 +9,79 @@ sealed class DataflowAcyclicRule(DataflowSemantics semantics) : IGraphRule
         var graph = context.Graph;
         if (context.Changes is null)
         {
-            foreach (var edge in FindBackEdges(graph))
+            foreach (var cycle in FindCycles(graph))
             {
-                context.Report(Cycle(edge));
+                context.Report(Cycle(cycle));
             }
             return;
         }
         foreach (var edge in context.AffectedEdges)
         {
             if (semantics.IsDataEdge(graph, edge, out var source, out var target) &&
-                Reaches(graph, target.NodeId, source.NodeId))
+                PathEdges(graph, target.NodeId, source.NodeId) is { } path)
             {
-                context.Report(Cycle(edge));
+                context.Report(Cycle([edge, .. path]));
             }
         }
     }
 
-    static Diagnostic Cycle(GraphEdge edge) =>
-        new(DataflowDiagnosticIds.DataCycle, DiagnosticSeverity.Error, edge.Id,
-            "This data edge closes a cycle; dataflow values cannot depend on themselves.");
+    /// <summary>Reports the closing edge as the element and the whole cycle, in flow order, as related elements.</summary>
+    static Diagnostic Cycle(List<GraphEdge> cycle) =>
+        new(DataflowDiagnosticIds.DataCycle, DiagnosticSeverity.Error, cycle[0].Id,
+            $"This data edge closes a cycle of {cycle.Count} edge(s); dataflow values cannot depend on themselves.")
+        {
+            Related = [.. cycle.Select(static edge => edge.Id)],
+        };
 
-    bool Reaches(GraphDocument graph, ElementId from, ElementId to)
+    /// <summary>Shortest data path between two nodes, or null when <paramref name="to"/> is unreachable.</summary>
+    List<GraphEdge>? PathEdges(GraphDocument graph, ElementId from, ElementId to)
     {
-        HashSet<ElementId> seen = [from];
-        Stack<ElementId> pending = new([from]);
-        while (pending.TryPop(out var current))
+        Dictionary<ElementId, GraphEdge?> via = new() { [from] = null };
+        Queue<ElementId> pending = new([from]);
+        while (pending.TryDequeue(out var current))
         {
             if (current == to)
             {
-                return true;
-            }
-            foreach (var next in OutgoingData(graph, current).Select(edge => graph.GetPort(edge.Target).NodeId))
-            {
-                if (seen.Add(next))
+                List<GraphEdge> path = [];
+                while (via[current] is { } step)
                 {
-                    pending.Push(next);
+                    path.Add(step);
+                    current = graph.GetPort(step.Source).NodeId;
+                }
+                path.Reverse();
+                return path;
+            }
+            foreach (var edge in OutgoingData(graph, current))
+            {
+                var next = graph.GetPort(edge.Target).NodeId;
+                if (via.TryAdd(next, edge))
+                {
+                    pending.Enqueue(next);
                 }
             }
         }
-        return false;
+        return null;
     }
 
-    /// <summary>Depth-first search over data edges; every edge into a node still on the path closes a cycle.</summary>
-    List<GraphEdge> FindBackEdges(GraphDocument graph)
+    /// <summary>
+    /// Depth-first search over data edges; every edge into a node still on the path closes a cycle, which is that edge
+    /// followed by the path edges from the revisited node.
+    /// </summary>
+    List<List<GraphEdge>> FindCycles(GraphDocument graph)
     {
-        List<GraphEdge> back = [];
+        List<List<GraphEdge>> cycles = [];
         Dictionary<ElementId, bool> onPath = [];
         foreach (var root in graph.Nodes.Select(static node => node.Id).Order())
         {
             if (!onPath.ContainsKey(root))
             {
-                Visit(graph, root, onPath, back);
+                Visit(graph, root, onPath, cycles);
             }
         }
-        return back;
+        return cycles;
     }
 
-    void Visit(GraphDocument graph, ElementId root, Dictionary<ElementId, bool> onPath, List<GraphEdge> back)
+    void Visit(GraphDocument graph, ElementId root, Dictionary<ElementId, bool> onPath, List<List<GraphEdge>> cycles)
     {
         Stack<(ElementId Node, IEnumerator<GraphEdge> Edges)> path = new();
         onPath[root] = true;
@@ -87,9 +103,30 @@ sealed class DataflowAcyclicRule(DataflowSemantics semantics) : IGraphRule
             }
             else if (active)
             {
-                back.Add(edge);
+                cycles.Add(CycleOnPath(path, edge, next));
             }
         }
+    }
+
+    /// <summary>The closing edge, then each path edge from <paramref name="start"/> back to the closing edge's source.</summary>
+    static List<GraphEdge> CycleOnPath(Stack<(ElementId Node, IEnumerator<GraphEdge> Edges)> path, GraphEdge closing,
+        ElementId start)
+    {
+        List<GraphEdge> steps = [];
+        if (path.Peek().Node != start)
+        {
+            // Below the top, each frame's current edge leads into the frame above it.
+            foreach (var (node, edges) in path.Skip(1))
+            {
+                steps.Add(edges.Current);
+                if (node == start)
+                {
+                    break;
+                }
+            }
+            steps.Reverse();
+        }
+        return [closing, .. steps];
     }
 
     IEnumerable<GraphEdge> OutgoingData(GraphDocument graph, ElementId node) =>
