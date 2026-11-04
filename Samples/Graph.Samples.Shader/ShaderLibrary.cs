@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MASS4.Graph.Dataflow;
+using MASS4.StableIdentity;
 
 namespace MASS4.Graph.Samples.Shader;
 

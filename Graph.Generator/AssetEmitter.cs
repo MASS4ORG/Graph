@@ -12,6 +12,7 @@ namespace MASS4.Graph.Generator;
 static class AssetEmitter
 {
     const string G = "global::MASS4.Graph.";
+    const string I = "global::MASS4.StableIdentity.";
     const string Ctx = G + "EvaluationContext c, " + G + "InstanceBuffer b, " + G + "InstanceHandle h";
     const string Args = "c, b, h";
 
@@ -43,7 +44,7 @@ static class AssetEmitter
     static void Header(StringBuilder text, string name, AssetPlan plan)
     {
         text.AppendLine($"const string Structure = {Definition.Quote(plan.Structure)};");
-        text.AppendLine($"static readonly {G}StableId CompiledAsset = {Definition.Identity(Text(plan.AssetId))};");
+        text.AppendLine($"static readonly {I}StableId CompiledAsset = {Definition.Identity(Text(plan.AssetId))};");
         text.AppendLine($"static readonly int[] FirstPorts = [{string.Join(", ", plan.Nodes.Select(static n => n.FirstPort))}];");
         text.AppendLine($"readonly {G}GraphNode[] nodes;");
         text.AppendLine("readonly DataFrame data;");
@@ -132,7 +133,7 @@ static class AssetEmitter
         var machine = plan.Machine is not null;
         text.AppendLine($$"""
             /// <inheritdoc />
-            public {{G}}StableId AssetId => CompiledAsset;
+            public {{I}}StableId AssetId => CompiledAsset;
             /// <inheritdoc />
             public {{G}}InstanceLayout InstanceLayout { get; }
             /// <inheritdoc />
@@ -159,7 +160,7 @@ static class AssetEmitter
             }
 
             /// <inheritdoc />
-            public bool Raise({{G}}InstanceBuffer b, {{G}}InstanceHandle h, {{G}}StableId signal) => {{(machine ? "machine.Raise(b, h, signal)" : "false")}};
+            public bool Raise({{G}}InstanceBuffer b, {{G}}InstanceHandle h, {{I}}StableId signal) => {{(machine ? "machine.Raise(b, h, signal)" : "false")}};
             """);
         Variables(text, plan);
         Outputs(text, plan);
@@ -420,10 +421,10 @@ static class AssetEmitter
                 static readonly int[] StateNodes = [{{string.Join(", ", states.Select(static n => n.Index))}}];
                 static readonly int[] TransitionNodes = [{{string.Join(", ", machine.Transitions.Select(static t => t.Node.Index))}}];
                 static readonly {{G}}ElementId EntryNode = {{Element(machine.Entry.Id)}};
-                static readonly {{G}}StableId TriggerAnnotation = {{Definition.Identity("4d415353-3447-5241-5048-000000000221")}};
+                static readonly {{I}}StableId TriggerAnnotation = {{Definition.Identity("4d415353-3447-5241-5048-000000000221")}};
                 readonly @{{name}} graph;
-                readonly {{G}}IdentityRegistry<{{G}}SignalType> signals;
-                readonly global::System.Collections.Generic.Dictionary<{{G}}StableId, int> triggers;
+                readonly {{I}}IdentityRegistry<{{G}}SignalType> signals;
+                readonly global::System.Collections.Generic.Dictionary<{{I}}StableId, int> triggers;
                 readonly int[] transitionTriggers;
                 readonly int[] memoryOffsets;
                 readonly int[] memorySizes;
@@ -466,7 +467,7 @@ static class AssetEmitter
                 for (var t = 0; t < TransitionNodes.Length; t++)
                 {
                     transitionTriggers[t] = graph.nodes[TransitionNodes[t]].Annotations.TryGetValue(TriggerAnnotation, out var value) &&
-                        value is {{G}}StableId trigger ? triggers[signals.Canonicalize(trigger)] : -1;
+                        value is {{I}}StableId trigger ? triggers[signals.Canonicalize(trigger)] : -1;
                 }
                 {{S}}ITransitionNode?[] transitions = [{{transitionBehaviors}}];
                 Features = [.. global::System.Linq.Enumerable.Distinct(global::System.Linq.Enumerable.Concat(
@@ -487,7 +488,7 @@ static class AssetEmitter
                 OnEnter({{Args}}, {{machine.Initial}});
             }
 
-            public bool Raise({{G}}InstanceBuffer b, {{G}}InstanceHandle h, {{G}}StableId signal)
+            public bool Raise({{G}}InstanceBuffer b, {{G}}InstanceHandle h, {{I}}StableId signal)
             {
                 if (!triggers.TryGetValue(signals.Canonicalize(signal), out var index))
                 {
@@ -585,7 +586,7 @@ static class AssetEmitter
                 protected override T ReadTransition<T>({{Ctx}}, int transition, int port) =>
                     graph.DataRead<T>({{Args}}, Flat(FirstPorts[TransitionNodes[transition]] + port));
                 protected override bool HasTrigger(int transition) => transitionTriggers[transition] >= 0;
-                protected override bool IsRaised({{G}}InstanceBuffer b, {{G}}InstanceHandle h, {{G}}StableId trigger) =>
+                protected override bool IsRaised({{G}}InstanceBuffer b, {{G}}InstanceHandle h, {{I}}StableId trigger) =>
                     triggers.TryGetValue(signals.Canonicalize(trigger), out var index) && b.GetSpan(h, raised)[index] != 0;
                 int Flat(int flat) => graph.HasData(flat) ? flat
                     : throw new global::System.InvalidOperationException("The port carries no data, or the program has no data plane.");

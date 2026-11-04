@@ -1,6 +1,6 @@
 # MASS4.Graph
 
-Headless, domain-neutral node graphs for material/shader graphs, state machines, visual scripting, behavior trees, compositors and automation. The libraries target `net10.0`; the core has no package, GUI or engine dependency and supports trimming and NativeAOT.
+Headless, domain-neutral node graphs for material/shader graphs, state machines, visual scripting, behavior trees, compositors and automation. The libraries target `net10.0`; the core depends only on [MASS4.StableIdentity](https://github.com/MASS4ORG/StableIdentity), has no GUI or engine dependency and supports trimming and NativeAOT.
 
 ## Packages
 

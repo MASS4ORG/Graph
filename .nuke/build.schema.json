@@ -41,6 +41,7 @@
         "Restore",
         "ShowCurrentVersion",
         "Test",
+        "TestFast",
         "TestReport",
         "UpdateChangelog",
         "UpdateProjectVersions"
@@ -138,6 +139,10 @@
           "type": "string",
           "description": "GitLab personal/project access token with api + write_repository scope. Omit to skip pushing/releasing to GitLab",
           "default": "Secrets must be entered via 'nuke :secrets [profile]'"
+        },
+        "NoLocalPackages": {
+          "type": "boolean",
+          "description": "Build against the published packages, ignoring local checkouts from Directory.Build.local.props"
         },
         "NuGetApiKey": {
           "type": "string",

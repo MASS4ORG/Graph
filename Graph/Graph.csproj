@@ -22,6 +22,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="$(StableIdentityLocalPath)/StableIdentity/StableIdentity.csproj" Condition="'$(StableIdentityLocalPath)' != ''"/>
+        <PackageReference Include="MASS4.StableIdentity" Version="1.*" Condition="'$(StableIdentityLocalPath)' == ''"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <InternalsVisibleTo Include="MASS4.Graph.Tests"/>
         <None Include="README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>

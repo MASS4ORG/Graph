@@ -1,12 +1,12 @@
 # MASS4.Graph
 
-Headless graph model, editing, persistence and evaluation contracts. Targets `net10.0`, has no package dependencies, and supports trimming and NativeAOT. It references no semantics, interpreter, GUI or engine package.
+Headless graph model, editing, persistence and evaluation contracts. Targets `net10.0`, depends only on [MASS4.StableIdentity](https://github.com/MASS4ORG/StableIdentity), and supports trimming and NativeAOT. It references no semantics, interpreter, GUI or engine package.
 
 ## Model and identity
 
 `GraphDocument` owns nodes, directed ports, edges, blackboard variables, groups, subgraphs and optional layout. Node payloads are application values; domains do not inherit a framework node class. Cycles are legal in the model; semantics packages impose their own rules.
 
-`StableId` identifies registered types and signals; `ElementId` identifies elements within an asset. Register `NodeType`, `PortType`, `SignalType`, `AnnotationType` and `HostFunction` entries through `GraphTypeRegistry`. Identities are explicit and independent of CLR names. `IdentityRegistry<T>` resolves old identities through rename entries; port keys are stable within their owning node type. Use [generated registration](../Graph.Generator/README.md) to declare registrations and typed helpers together.
+`StableId` identifies registered types and signals; `ElementId` identifies elements within an asset. Register `NodeType`, `PortType`, `SignalType`, `AnnotationType` and `HostFunction` entries through `GraphTypeRegistry`. Identities are explicit and independent of CLR names. `StableId`, `IdentityRegistry<T>` and its rename entries come from the `MASS4.StableIdentity` namespace, shared with the engine and data assets so one type keeps one identity everywhere (add `using MASS4.StableIdentity;`); port keys are stable within their owning node type. Use [generated registration](../Graph.Generator/README.md) to declare registrations and typed helpers together.
 
 ## Editing
 

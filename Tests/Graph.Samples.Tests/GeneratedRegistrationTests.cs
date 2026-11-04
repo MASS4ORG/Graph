@@ -88,6 +88,29 @@ public class GeneratedRegistrationTests
     }
 
     [Test]
+    public async Task GeneratedModulesComposeIntoOneRegistryAndSharedSemantics()
+    {
+        // Both modules register the dataflow built-ins as prerequisites; a host binds both into one interpreter.
+        var registry = new GraphTypeRegistry().Add(new S.ShaderModule()).Add(new F.GuardModule()).Add(new F.GuardModule());
+        StateNodes.Register(registry);
+        var dataflow = new DataflowSemantics();
+        var state = new StateSemantics();
+        IGraphTypeModule[] modules = [new S.ShaderModule(), new F.GuardModule()];
+        foreach (var module in modules)
+        {
+            (module as IDataflowModule)?.ConfigureDataflow(dataflow);
+            (module as IStateModule)?.ConfigureState(state);
+        }
+
+        await Assert.That(modules[0] is IStateModule).IsFalse();
+        await Assert.That(() => registry.Add(null!)).ThrowsExactly<ArgumentNullException>();
+        var guard = GuardExample.Build(dataflow, state, registry);
+        await Assert.That(new GraphInterpreter(dataflow, state: state).Compile(guard.Document).Graph).IsNotNull();
+        var material = MaterialExample.Build(dataflow, registry);
+        await Assert.That(new GraphInterpreter(dataflow).Compile(material.Document).Graph).IsNotNull();
+    }
+
+    [Test]
     public async Task DomainGuardedTransitionsMigrateOldPayloadsAndRetainUnknownData()
     {
         var module = new F.GuardModule();

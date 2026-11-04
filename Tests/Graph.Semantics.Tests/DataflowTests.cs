@@ -148,6 +148,7 @@ public class DataflowTests
         var a = editor.AddNode(Scale);
         var b = editor.AddNode(Scale);
         editor.Wire(a, 1, b, 0);
+        var forward = editor.Document.Edges.Single().Id;
 
         var rejected = editor.Link(b, 1, a, 0);
         var self = editor.Link(a, 1, a, 0);
@@ -155,11 +156,17 @@ public class DataflowTests
         permissive.Wire(b, 1, a, 0);
         var diagnostics = new DiagnosticBag();
         var program = data.Compile(editor.Document, new(), diagnostics);
+        var cycle = diagnostics.Single(d => d.Id == DataflowDiagnosticIds.DataCycle);
 
         await Assert.That(rejected.Diagnostics.Single().Id).IsEqualTo(DataflowDiagnosticIds.DataCycle);
+        await Assert.That(rejected.Diagnostics.Single().Related.Count).IsEqualTo(2);
+        await Assert.That(rejected.Diagnostics.Single().Related[0]).IsEqualTo(rejected.Diagnostics.Single().ElementId!.Value);
+        await Assert.That(rejected.Diagnostics.Single().Related[1]).IsEqualTo(forward);
         await Assert.That(self.Diagnostics.Single().Id).IsEqualTo(DataflowDiagnosticIds.DataCycle);
+        await Assert.That(self.Diagnostics.Single().Related.Count).IsEqualTo(1);
         await Assert.That(program).IsNull();
-        await Assert.That(diagnostics.Count(d => d.Id == DataflowDiagnosticIds.DataCycle)).IsEqualTo(1);
+        await Assert.That(cycle.Related).IsEquivalentTo(editor.Document.Edges.Select(edge => edge.Id).ToArray());
+        await Assert.That(cycle.Related[0]).IsEqualTo(cycle.ElementId!.Value);
     }
 
     [Test]

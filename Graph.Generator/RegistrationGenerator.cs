@@ -177,7 +177,7 @@ sealed class Definition(INamedTypeSymbol symbol)
     }
 
     internal static string Quote(string value) => SymbolDisplay.FormatLiteral(value, true);
-    internal static string Identity(string value) => $"new global::MASS4.Graph.StableId(new global::System.Guid({Quote(value)}))";
+    internal static string Identity(string value) => $"new global::MASS4.StableIdentity.StableId(new global::System.Guid({Quote(value)}))";
 }
 
 /// <summary>Which semantics packages the compilation references; generated code binds only to those.</summary>

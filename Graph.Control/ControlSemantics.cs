@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using MASS4.StableIdentity;
 
 namespace MASS4.Graph.Control;
 
